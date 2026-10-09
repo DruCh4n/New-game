@@ -10,6 +10,7 @@ import { closeMonth, onBuildingFinished, type Loan, type MonthReport } from './E
 import { buildingType, needsPermit } from './catalog';
 import { checkUnlock, permitFactor } from './District';
 import { BALANCE, DIFFICULTIES, type Difficulty, type DifficultyId } from './balance';
+import { checkObjectives, monthlyRules, type ScenarioState } from './scenarios';
 
 export type Speed = 0 | 1 | 2 | 4 | 8;
 /** Real seconds per in-game day at 1× speed. */
@@ -50,7 +51,7 @@ export interface Toast {
   params?: Record<string, string | number>;
 }
 
-export type GameEvent = 'day' | 'money' | 'status' | 'session' | 'speed' | 'dev' | 'month';
+export type GameEvent = 'day' | 'money' | 'status' | 'session' | 'speed' | 'dev' | 'month' | 'scenario';
 
 /** Mutable game state on top of the generated World. */
 export class Game {
@@ -68,6 +69,8 @@ export class Game {
   readonly zones: Uint8Array;
   zoneVersion = 0;
   districtUnlocked = false;
+  /** Current scenario, objectives and win/lose state. */
+  scenario: ScenarioState;
   readonly reports: MonthReport[] = [];
   private acc = 0;
   private speedBeforeTalk: Speed = 1;
@@ -82,6 +85,7 @@ export class Game {
     this.money = Math.round((r.landPerM2 * this.difficulty.startMoney) / r.priceStep) * r.priceStep;
     this.dev = new Development(world, () => this.money);
     this.zones = new Uint8Array(world.grid.w * world.grid.h);
+    this.scenario = { id: 'sandbox', startCash: this.money, outcome: 'playing', overdueMonths: 0, lowRepMonths: 0, tutorialStep: 0, continued: false };
     this.dev.onChange = (_e, detail) => {
       if (detail?.kind === 'building') {
         this.toast({ kind: 'good', key: 'toast.built', params: { buildingId: detail.id } });
@@ -176,9 +180,12 @@ export class Game {
     this.dev.advanceDay();
     if (this.date().getUTCDate() === 1) {
       const report = closeMonth(this);
+      monthlyRules(this);
+      checkObjectives(this);
       this.emit('month');
       this.toast({ kind: report.net >= 0 ? 'good' : 'bad', key: 'toast.month', params: { price: report.net } });
     }
+    if (this.day % 7 === 0) checkObjectives(this);
     this.emit('day');
   }
 

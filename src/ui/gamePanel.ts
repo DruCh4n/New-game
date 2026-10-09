@@ -11,6 +11,8 @@ export interface GameMenuActions {
   exportFile(): void;
   importFile(file: File): void;
   newGame(difficulty: DifficultyId): void;
+  mainMenu(): void;
+  retire(): void;
   close(): void;
 }
 
@@ -30,6 +32,7 @@ export function renderGameMenu(el: HTMLElement, game: Game | null, a: GameMenuAc
   }).join('');
   el.innerHTML = `
     <div class="panel-head"><h2>${t('game.title')}</h2><button id="panel-close" class="icon" aria-label="${t('panel.close')}">✕</button></div>
+    <div class="row"><button id="g-menu" class="primary">🏠 ${t('menu.mainMenu')}</button>${game && game.scenario.outcome === 'playing' ? `<button id="g-retire">🏁 ${t('menu.retire')}</button>` : ''}</div>
     <ul class="slots">${rows}</ul>
     <div class="row">
       <button id="g-export" ${game ? '' : 'disabled'}>⬇ ${t('game.export')}</button>
@@ -41,6 +44,8 @@ export function renderGameMenu(el: HTMLElement, game: Game | null, a: GameMenuAc
     <div class="row diff">${(['easy', 'normal', 'hard'] as DifficultyId[]).map((d) => `<button data-new="${d}" class="${confirmNew === d ? 'danger' : ''}">${tk(`diff.${d}`)}</button>`).join('')}</div>
     <p class="hint">${confirmNew ? t('game.newConfirm') : t('diff.hint')}</p>`;
   el.querySelector<HTMLElement>('#panel-close')!.onclick = a.close;
+  el.querySelector<HTMLElement>('#g-menu')!.onclick = a.mainMenu;
+  el.querySelector<HTMLElement>('#g-retire')?.addEventListener('click', a.retire);
   el.querySelectorAll<HTMLElement>('[data-save]').forEach((b) => (b.onclick = () => a.save(b.dataset.save as Slot)));
   el.querySelectorAll<HTMLElement>('[data-load]').forEach((b) => (b.onclick = () => a.load(b.dataset.load as Slot)));
   el.querySelector<HTMLElement>('#g-export')!.onclick = a.exportFile;

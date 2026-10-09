@@ -31,6 +31,8 @@ export class Life {
   private game: Game | null = null;
   private laneVersion = '';
   showTraffic = true;
+  /** Pulsing ring that points at something on the map (tutorial). */
+  marker: { x: number; y: number } | null = null;
   showClouds = true;
 
   constructor() {
@@ -200,6 +202,11 @@ export class Life {
       gr.moveTo(mx + 1.2, my + 1.6).lineTo(mx + Math.cos(a) * L + 1.2, my + Math.sin(a) * L + 1.6).stroke({ width: 0.9, color: 0x000000, alpha: 0.2 });
       gr.rect(mx - 1, my - 1, 2, 2).fill(0xd9a23a);
       gr.rect(mx - Math.cos(a) * 4 - 1, my - Math.sin(a) * 4 - 1, 2, 2).fill(0x6f6a5f);
+    }
+    if (this.marker) {
+      const ph = (this.t * 0.8) % 1;
+      gr.circle(this.marker.x, this.marker.y, 6 + ph * 14).stroke({ width: 1.6, color: 0xffd27f, alpha: 1 - ph });
+      gr.circle(this.marker.x, this.marker.y, 5).stroke({ width: 1.2, color: 0xffd27f, alpha: 0.9 });
     }
     for (const d of g.dev.demolishing.values()) {
       const p = g.world.plot(`p_${d.buildingId}`);

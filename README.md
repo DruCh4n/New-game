@@ -118,6 +118,24 @@ build a tower with a loan, sell units, repeat) and prints cash, debt and net wor
 results on the sample map: Easy ≈ Rp 63 B → 235 B, Normal ≈ 42 B → 128 B, Hard ≈ 35 B → 101 B, with a
 cash squeeze in year one (Hard drops to ~20% of its starting net worth before the first tower sells).
 
+### Scenarios, goals and score
+
+The game opens on a start screen: pick a map and a scenario.
+
+- **Tutorial**: a guided first deal. A coach box and a pulsing marker walk you through
+  buying a plot, haggling, demolishing, building a house and checking your finances.
+- **Shophouses on the main road** (Easy, 2 years): build 2 ruko and reach reputation 40.
+- **The first tower** (Normal, 3 years): finish an apartment tower without breaking a promise.
+- **Kampung renewal** (Normal, 5 years): provide 300 homes with reputation 60.
+- **A new district** (Hard, 6 years): own 20,000 m², keep the district balance at 70% and double
+  your net worth.
+- **Free play**: no goals; use **☰ Game → Retire** to end and get a score.
+
+The goals card on the left shows progress and time left. You lose if you end 3 months in a row in
+the red (bankruptcy), keep reputation under 5 for 6 months, or run out of time. The end screen
+breaks your score down (wealth, reputation, homes, promises, goals, time bonus, difficulty) and
+gives a rank; best scores are kept in this browser. After winning or losing you can keep playing.
+
 ### Saving
 
 **☰ Game** in the top bar: three save slots plus an automatic save every month (stored in this
@@ -280,3 +298,4 @@ land area × country price × location factor (main road ×1.7, street ×1.0, al
 5. ✅ Economy, clock, income, loans, save/load
 6. ✅ Polish: sound, animation, more building types, district/new-city mode, lifelike terrain
 7. ✅ Real-map hardening (coastlines, shop points, big/dense maps), in-game import, difficulty and balance
+8. ✅ Scenarios with goals, win/lose rules, end-of-game score and rank, guided tutorial

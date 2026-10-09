@@ -10,6 +10,7 @@ import type { Loan, MonthReport } from './Economy';
 import type { PlotStatus } from './types';
 import { decodeZones, encodeZones } from './District';
 import type { DifficultyId } from './balance';
+import type { ScenarioState } from './scenarios';
 
 export const SAVE_FORMAT = 'kotabaru-save';
 export const SAVE_VERSION = 1;
@@ -39,6 +40,8 @@ export interface SaveData {
   /** Added in Milestone 7. */
   difficulty?: DifficultyId;
   zones?: number[];
+  /** Added in Milestone 8. */
+  scenario?: ScenarioState;
 }
 
 export function serialize(game: Game, mapKey: string): SaveData {
@@ -64,6 +67,7 @@ export function serialize(game: Game, mapKey: string): SaveData {
     dev: game.dev.serialize(),
     districtUnlocked: game.districtUnlocked,
     difficulty: game.difficulty.id,
+    scenario: game.scenario,
     zones: encodeZones(game.zones),
   };
 }
@@ -93,6 +97,7 @@ export function restore(save: SaveData, map: MapData): Game {
   game.dev.restore(save.dev);
   game.districtUnlocked = !!save.districtUnlocked;
   if (save.zones) decodeZones(save.zones, game.zones);
+  if (save.scenario) game.scenario = { ...save.scenario };
   game.speed = 0; // start paused after loading
   return game;
 }

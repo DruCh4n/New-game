@@ -325,3 +325,81 @@ ul.slots li > span { display: flex; gap: 4px; flex: none; }
 }
 #sidepanel textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; resize: vertical; width: 100%; }
 #sidepanel .steps a { color: var(--accent); font-size: 12px; align-self: center; }
+
+/* ---------- milestone 8: welcome, goals, end screen, tutorial ---------- */
+.overlay {
+  position: fixed; inset: 0; z-index: 20; background: rgba(12, 14, 19, 0.72); backdrop-filter: blur(3px);
+  display: grid; place-items: center; padding: 24px 16px; overflow-y: auto;
+}
+.overlay[hidden] { display: none; }
+.modal {
+  background: var(--panel-solid); border: 1px solid var(--border); border-radius: 14px; padding: 22px 24px;
+  width: min(980px, 100%); box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5); display: flex; flex-direction: column; gap: 10px;
+}
+.modal h1 { margin: 0; font-size: 26px; text-wrap: balance; }
+.modal h3 { margin: 10px 0 0; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+.modal .lead { margin: 2px 0 0; color: var(--muted); max-width: 62ch; line-height: 1.45; }
+.modal .muted { color: var(--muted); font-size: 12px; margin: 0; }
+.welcome-head { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
+.welcome-opts { display: flex; gap: 6px; align-items: center; }
+.modal button.continue {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 14px; text-align: left;
+  border-color: var(--accent); background: #2a2519;
+}
+.modal button.continue small { color: var(--muted); }
+.scenarios { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.sc-card {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding: 12px 14px; text-align: left;
+  border-radius: 10px; background: #232831; min-width: 0;
+}
+.sc-card.active, .sc-card.active:hover { border-color: var(--accent); background: #2d2a22; color: var(--text); box-shadow: inset 0 0 0 1px var(--accent); }
+.sc-card .sc-icon { font-size: 24px; }
+.sc-card b { font-size: 15px; }
+.sc-card small { color: var(--muted); line-height: 1.4; font-size: 12px; }
+.sc-card .chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.sc-card ul { margin: 2px 0 0; padding-left: 16px; font-size: 12px; color: #cfd3da; }
+.welcome-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 4px; }
+.welcome-foot label { color: var(--muted); display: flex; gap: 8px; align-items: center; }
+.welcome-foot .primary { padding: 10px 22px; font-size: 15px; }
+ol.best { margin: 4px 0 0; padding-left: 20px; font-size: 13px; color: #cfd3da; text-align: left; display: flex; flex-direction: column; gap: 2px; }
+ol.best b { color: var(--accent); font-variant-numeric: tabular-nums; }
+
+.modal.end { width: min(560px, 100%); text-align: center; align-items: stretch; }
+.modal.end .end-icon { font-size: 44px; }
+.modal.end .lead { margin: 0 auto; }
+.score-big { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 8px 0; }
+.score-big span { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+.score-big strong { font-size: 42px; color: var(--accent); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.score-big em { font-style: normal; font-weight: 600; }
+table.score-lines { width: 100%; border-collapse: collapse; font-size: 13px; text-align: left; }
+table.score-lines td { padding: 4px 6px; border-bottom: 1px solid var(--border); }
+table.score-lines td:last-child { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.modal .row.center { justify-content: center; margin-top: 8px; }
+
+#hudleft { position: absolute; top: 12px; left: 12px; display: flex; flex-direction: column; gap: 8px; width: 290px; z-index: 3; pointer-events: none; }
+#hudleft > * { pointer-events: auto; }
+#goals, #coach { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 12px; box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3); }
+#goals[hidden], #coach[hidden] { display: none; }
+.goals-head { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+.goals-head em { font-style: normal; color: var(--muted); font-weight: 400; white-space: nowrap; }
+.goals-head em.bad { color: var(--danger); }
+.goal { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; margin: 6px 0; }
+.goal span { grid-column: 1 / -1; }
+.goal.done span { color: #8fd18a; }
+.goal .bar { height: 5px; background: #2c323d; border-radius: 3px; overflow: hidden; align-self: center; }
+.goal .bar i { display: block; height: 100%; background: var(--accent); }
+.goal.done .bar i { background: #4caf7d; }
+.goal small { color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+#goals .warn { margin: 6px 0 0; }
+#coach { border-color: var(--accent); background: #26231b; }
+#coach p { margin: 6px 0; font-size: 13px; line-height: 1.45; }
+.coach-head { display: flex; justify-content: space-between; align-items: center; }
+.coach-head .link { font-size: 11px; color: var(--muted); }
+#coach .dots { display: flex; gap: 3px; margin-top: 6px; }
+#coach .dots i { width: 14px; height: 4px; border-radius: 2px; background: #3a3f4a; }
+#coach .dots i.on { background: #4caf7d; }
+#coach .dots i.now { background: var(--accent); }
+.coach-target { outline: 3px solid var(--accent) !important; outline-offset: 2px; animation: coach-pulse 1.2s ease-in-out infinite; }
+@keyframes coach-pulse { 50% { outline-color: rgba(224, 164, 88, 0.25); } }
+@media (prefers-reduced-motion: reduce) { .coach-target { animation: none; } }
+@media (max-width: 900px) { #hudleft { width: 220px; } }

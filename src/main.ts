@@ -10,6 +10,11 @@ import { PlotLayer, type Lens } from './render/PlotLayer';
 import { lastMap, listBundledMaps, listMaps, loadMapFile, rememberMap, saveImportedMap } from './map/mapStore';
 import type { BBox } from './shared/mapTypes';
 import type { DifficultyId } from './game/balance';
+import { continuePlaying, computeScore, newScenarioState, recordScore, retire, scenario, TUTORIAL_STEPS, type ScenarioId } from './game/scenarios';
+import { prepareTutorial, restoreTutorial } from './game/tutorialSetup';
+import { Tutorial } from './ui/tutorial';
+import { renderEnd, renderGoals, renderWelcome } from './ui/scenarioUi';
+import { slotMeta } from './game/saveStore';
 import { LocalProjection } from './shared/projection';
 import type { MapData } from './shared/mapTypes';
 import { Hud } from './ui/hud';
@@ -116,12 +121,18 @@ async function boot() {
     }
   }
 
-  async function show(loader: () => Promise<MapData>, key: string, save?: SaveData, difficulty: DifficultyId = 'normal') {
+  let tutorial: Tutorial | null = null;
+  let goalsTimer = 0;
+  let goalsDay = -1;
+  let scoreRecordedFor = '';
+
+  async function show(loader: () => Promise<MapData>, key: string, save?: SaveData, difficulty: DifficultyId = 'normal', scenarioId: ScenarioId = 'sandbox') {
     hud.showLoading(t('loading'));
     try {
       const m = await loader();
       await new Promise((r) => setTimeout(r, 30)); // let the loading message paint before heavy work
       const g = save ? restore(save, m) : new Game(new World(m), difficulty);
+      if (!save) g.scenario = newScenarioState(g, scenarioId);
       const w = g.world;
       currentKey = key;
       currentLoader = () => Promise.resolve(m);
@@ -140,6 +151,7 @@ async function boot() {
           hud.renderPalette();
         }
         if (e === 'day' || e === 'money' || e === 'speed') hud.updateStats();
+        if (e === 'scenario') onScenario(g);
         if (e === 'month') {
           writeSlot('auto', serialize(g, currentKey));
           if (hud.panel === 'finance') hud.refreshPanel();
@@ -181,6 +193,10 @@ async function boot() {
       await overlay.setMap(m, key);
       hud.showLoading(null);
       if (save) hud.showToast({ kind: 'good', key: 'game.loaded' });
+      startTutorialIfNeeded(g, !!save);
+      document.getElementById('endscreen')!.hidden = true;
+      renderGoals(document.getElementById('goals')!, g);
+      if (g.scenario.outcome !== 'playing' && !g.scenario.continued) onScenario(g);
     } catch (e) {
       console.error(e);
       hud.showLoading(t('loading.failed', { error: (e as Error).message }), true);
@@ -406,6 +422,8 @@ async function boot() {
           }
         },
         newGame: (d) => { if (currentLoader) void show(currentLoader, currentKey, undefined, d); },
+        mainMenu: () => { hud.openPanel('info'); showWelcome(); },
+        retire: () => { if (game) { hud.openPanel('info'); retire(game); } },
         close: () => hud.openPanel('info'),
       },
       negotiation: {
@@ -426,6 +444,64 @@ async function boot() {
     overlay,
   );
   onLangChange(() => hud.renderAll());
+
+  /** Sets up the guided tutorial for a tutorial scenario (new or loaded). */
+  function startTutorialIfNeeded(g: Game, loaded: boolean) {
+    tutorial?.stop();
+    tutorial = null;
+    if (!scenario(g.scenario.id).tutorial || g.scenario.tutorialStep >= TUTORIAL_STEPS) return;
+    const plot = loaded ? (restoreTutorial(g), g.world.plot(g.scenario.tutorialPlot ?? '')) : prepareTutorial(g);
+    if (!plot) return;
+    g.money = Math.max(g.money, plot.value * 6); // enough for the first deal and a house
+    camera.centerOn(plot.cx, plot.cy, 4);
+    tutorial = new Tutorial(document.getElementById('coach')!, g, plot, {
+      selected: () => selected,
+      panel: () => hud.panel,
+      marker: (x, y, on) => { life.marker = on ? { x, y } : null; },
+    });
+  }
+
+  /** A scenario ended (won, lost or retired): show the score. */
+  function onScenario(g: Game) {
+    const st = g.scenario;
+    renderGoals(document.getElementById('goals')!, g);
+    if (st.outcome === 'playing' || st.continued) { document.getElementById('endscreen')!.hidden = true; return; }
+    g.setSpeed(0);
+    const mapName = g.world.map.name;
+    const id = `${currentKey}|${st.id}|${st.endDay}|${st.outcome}`;
+    if (scoreRecordedFor !== id) {
+      scoreRecordedFor = id;
+      const sc = computeScore(g);
+      recordScore({ scenario: st.id, map: mapName, difficulty: g.difficulty.id, score: sc.total, rank: sc.rank, outcome: st.outcome, date: new Date().toISOString() });
+      sound.play(st.outcome === 'won' ? 'done' : 'month');
+    }
+    renderEnd(document.getElementById('endscreen')!, g, mapName, {
+      keepPlaying: () => { continuePlaying(g); g.setSpeed(1); },
+      mainMenu: () => { document.getElementById('endscreen')!.hidden = true; showWelcome(); },
+    });
+  }
+
+  /** The start screen: scenarios, continue, best scores. */
+  function showWelcome() {
+    game?.setSpeed(0);
+    const el = document.getElementById('welcome')!;
+    renderWelcome(el, maps, currentKey, slotMeta('auto'), !!game, {
+      start: (id, key) => {
+        el.hidden = true;
+        const entry = maps.find((m) => m.key === key) ?? maps[0];
+        rememberMap(entry.key);
+        hud.setMaps(maps, entry.key);
+        void show(entry.load, entry.key, undefined, scenario(id).difficulty, id).then(() => game?.setSpeed(1));
+      },
+      continueGame: () => {
+        const d = readSlot('auto');
+        if (!d) return;
+        el.hidden = true;
+        loadSave(d);
+      },
+      close: () => { el.hidden = true; game?.setSpeed(1); },
+    });
+  }
 
   /** Loads a save, switching to its map if needed. */
   function loadSave(data: SaveData) {
@@ -531,6 +607,15 @@ async function boot() {
     camera.apply(renderer.world);
     plotLayer.update(camera.zoom);
     life.update(dt, camera.zoom, game?.speed ?? 0);
+    goalsTimer += dt;
+    if (goalsTimer > 0.35 && game) {
+      goalsTimer = 0;
+      tutorial?.update();
+      if (game.day !== goalsDay) {
+        goalsDay = game.day;
+        renderGoals(document.getElementById('goals')!, game);
+      }
+    }
     zoneTimer += dt;
     if (zonesDirty && zoneTimer > 0.08) {
       zonesDirty = false;
@@ -574,6 +659,9 @@ async function boot() {
   const start = maps.find((m) => m.key === lastMap()) ?? maps.find((m) => m.key === 'sample-kampung') ?? maps[0];
   hud.setMaps(maps, start.key);
   await show(start.load, start.key);
+  (game as Game | null)?.setSpeed(0);
+  showWelcome();
+  onLangChange(() => { if (!document.getElementById('welcome')!.hidden) showWelcome(); });
 }
 
 void boot();
