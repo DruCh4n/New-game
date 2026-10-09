@@ -403,3 +403,75 @@ table.score-lines td:last-child { text-align: right; font-variant-numeric: tabul
 @keyframes coach-pulse { 50% { outline-color: rgba(224, 164, 88, 0.25); } }
 @media (prefers-reduced-motion: reduce) { .coach-target { animation: none; } }
 @media (max-width: 900px) { #hudleft { width: 220px; } }
+
+/* ---------- Milestone 9: faces, chat rooms, meetings ---------- */
+.portrait { display: block; flex: none; border-radius: 50%; }
+.portrait.pop { animation: face-pop 0.35s ease-out; }
+@keyframes face-pop { 0% { transform: scale(0.92); } 60% { transform: scale(1.04); } 100% { transform: scale(1); } }
+.owner .face { flex: none; }
+.owner #panel-chat { margin-left: auto; }
+.room-head { display: flex; justify-content: space-between; }
+.speaker { display: flex; gap: 12px; align-items: center; }
+.speaker .big-face { flex: none; border-radius: 50%; box-shadow: 0 0 0 2px #2d333d, 0 4px 14px rgba(0, 0, 0, 0.35); }
+.speaker .who { flex: 1; min-width: 0; }
+.speaker .who b { display: block; font-size: 16px; }
+.speaker .who small { color: var(--muted); font-size: 12px; }
+.speaker .trait { margin-top: 6px; }
+.transcript .msg { display: flex; gap: 6px; align-items: flex-end; }
+.transcript .msg.player { justify-content: flex-end; }
+.transcript .msg .face { width: 30px; flex: none; }
+.transcript .msg.cont { margin-top: -3px; }
+.transcript .msg .bubble { max-width: calc(100% - 44px); }
+.bubble.other { background: #24333a; }
+.bubble .who { display: block; font-size: 11px; color: var(--accent-2); font-style: normal; margin-bottom: 1px; }
+.bubble .via { font-style: normal; margin-right: 4px; }
+.msg.incoming .bubble { box-shadow: inset 2px 0 0 var(--accent-2); }
+.room-actions { display: flex; gap: 6px; }
+.room-actions button { flex: 1; }
+.helpers { display: flex; flex-direction: column; gap: 4px; border-top: 1px dashed var(--border); padding-top: 6px; }
+.helpers .group-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+.helpers button { display: flex; align-items: center; gap: 6px; font-size: 12px; text-align: left; padding: 3px 8px; }
+#chat-btn { position: relative; }
+#chat-btn .badge, .room .badge {
+  display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 9px; background: var(--danger); color: #fff;
+  font-size: 11px; font-style: normal; line-height: 18px; text-align: center; margin-left: 6px; font-weight: 700;
+}
+.chat-filter { display: flex; margin: 0 0 8px; }
+.chat-filter button { flex: 1; font-size: 12px; }
+.chat-list { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; min-height: 0; flex: 1; }
+.chat-list .room { display: flex; gap: 10px; align-items: center; width: 100%; text-align: left; background: transparent; border-color: transparent; padding: 6px; }
+.chat-list .room:hover { background: #262c36; }
+.chat-list .room .body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.chat-list .room .body small { color: var(--muted); font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-list .room.unread .body b { color: #fff; }
+.chat-list .room.unread .body small { color: #cfd3da; }
+.chat-list .room .meta { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; color: var(--muted); font-size: 11px; }
+.chat-list .face.stack { display: flex; width: 40px; flex-wrap: wrap; }
+.chat-list .face.stack .portrait { margin: -2px; }
+.tag { font-style: normal; font-size: 10px; padding: 0 5px; border-radius: 6px; background: #343b47; color: var(--muted); }
+.tag.sold { background: #24432f; color: #8fd18a; }
+.meeting h2 { margin: 2px 0 0 !important; }
+.mfaces { display: flex; flex-wrap: wrap; gap: 4px; }
+.mface { position: relative; display: flex; flex-direction: column; align-items: center; padding: 2px; background: transparent; border: none; width: 54px; }
+.mface small { font-size: 10px; color: var(--muted); max-width: 52px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mface i { position: absolute; top: 0; right: 2px; width: 17px; height: 17px; border-radius: 50%; font-style: normal; font-size: 11px; line-height: 17px; font-weight: 700; background: #555; color: #fff; }
+.mface u { position: absolute; top: 0; left: 2px; text-decoration: none; font-size: 12px; color: #f2c14e; }
+.mface.ans-yes i { background: #3f9a5e; }
+.mface.ans-maybe i { background: #c9922e; }
+.mface.ans-no i { background: var(--danger); }
+.mface.ans-absent { opacity: 0.4; }
+.meeting .transcript { max-height: 240px; }
+.multi-list { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 300px; overflow-y: auto; }
+.multi-list li { display: flex; align-items: center; gap: 6px; }
+.multi-list li > .link { display: flex; gap: 8px; align-items: center; flex: 1; text-align: left; min-width: 0; }
+.multi-list li > .link span { display: flex; flex-direction: column; min-width: 0; }
+.multi-list li small { color: var(--muted); font-size: 11px; }
+#sidepanel[hidden] { display: none !important; }
+.transcript .bubble.owner { display: block; margin: 0; }
+.transcript .msg.owner { margin: 0; }
+.meeting .mface { width: 46px; }
+.meeting .mface .portrait { width: 38px; height: 38px; }
+.meeting .transcript { min-height: 90px; max-height: 190px; }
+.meeting .opts { grid-template-columns: 1fr 1fr; }
+.meeting .opts small { font-size: 10px; }
+.meeting .summary { display: flex; flex-direction: row; flex-wrap: wrap; gap: 2px 12px; }

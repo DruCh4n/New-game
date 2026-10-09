@@ -12,7 +12,7 @@ export interface InputInterceptor {
 
 export interface ControlsOptions {
   onPointerMove?(sx: number, sy: number): void;
-  onClick?(sx: number, sy: number): void;
+  onClick?(sx: number, sy: number, e?: PointerEvent): void;
   interceptor?: InputInterceptor;
 }
 
@@ -67,7 +67,7 @@ export function attachCameraControls(el: HTMLElement, cam: Camera, opts: Control
     el.classList.remove('dragging');
     if (moved < 5) {
       const [x, y] = local(e);
-      opts.onClick?.(x, y);
+      opts.onClick?.(x, y, e);
     } else if (!intercepted && performance.now() - lastT < 80) {
       cam.setInertia(vx, vy);
     }

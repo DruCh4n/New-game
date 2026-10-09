@@ -118,6 +118,24 @@ build a tower with a loan, sell units, repeat) and prints cash, debt and net wor
 results on the sample map: Easy ≈ Rp 63 B → 235 B, Normal ≈ 42 B → 128 B, Hard ≈ 35 B → 101 B, with a
 cash squeeze in year one (Hard drops to ~20% of its starting net worth before the first tower sells).
 
+### People, chats and meetings
+
+- **Faces.** Every owner has their own face (skin, hair, hijab or peci, glasses, age), and it changes
+  with what they say: happy, delighted, thinking, worried, sad, angry or surprised.
+- **💬 Chats** (top bar): one room per person, like a messaging app, plus one room per group
+  meeting. People also **message you between visits**: someone short of money reconsiders, the last
+  family on a street asks to talk, a neighbour of your land offers to sell, a former owner asks
+  about a promised flat. A red badge shows unread rooms.
+- **Get help** in a conversation: ask a neighbour who already sold to you to put in a good word, or
+  ask the RT head (Ketua RT) to speak for you. Both soften the owner's price; the RT head refuses
+  if they don't like you.
+- **Group meetings (musyawarah).** Shift+click houses to select several, or press **Select with
+  neighbours** in a plot's panel, then **Hold a meeting**. Present the plan, listen to everyone,
+  contribute to the kampung fund, and make one offer (a % of each owner's value) to the whole room.
+  Each person answers yes, "make it X", or no. Family, friends and the RT head pull others along.
+  Sign with everyone who agreed in one go.
+- The map info card can be closed (✕); bring it back with **ⓘ Map info** in the toolbar.
+
 ### Scenarios, goals and score
 
 The game opens on a start screen: pick a map and a scenario.
@@ -299,3 +317,16 @@ land area × country price × location factor (main road ×1.7, street ×1.0, al
 6. ✅ Polish: sound, animation, more building types, district/new-city mode, lifelike terrain
 7. ✅ Real-map hardening (coastlines, shop points, big/dense maps), in-game import, difficulty and balance
 8. ✅ Scenarios with goals, win/lose rules, end-of-game score and rank, guided tutorial
+9. ✅ People: faces with emotions, a chat room per person, messages between visits, group meetings
+   (multi-select), help from neighbours and the RT head, closable map info
+10. Land papers and the dark side: certificates (SHM/HGB/girik/AJB), missing or disputed papers, legal
+    routes, land mafia (forged duplicates), bribing officials, ormas/preman, staged trouble and arson,
+    with heat, investigations, court and media consequences
+11. Builder and sales: build grid with snapping, building variants and sizes (house types, floors),
+    demolishing roads enclosed by your land, a sales and marketing office with prices, campaigns and
+    buyer characters
+12. Bigger world and an inheritance start: much larger maps, starting with inherited family land, and a
+    campaign across neighbourhoods
+13. Living city: residents and shops, events (floods, booms, crashes, elections), a rival developer,
+    news and protests
+14. Phone and touch: touch controls, phone layout, installable offline app

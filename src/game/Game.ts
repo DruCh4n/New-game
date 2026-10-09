@@ -11,6 +11,8 @@ import { buildingType, needsPermit } from './catalog';
 import { checkUnlock, permitFactor } from './District';
 import { BALANCE, DIFFICULTIES, type Difficulty, type DifficultyId } from './balance';
 import { checkObjectives, monthlyRules, type ScenarioState } from './scenarios';
+import type { Meeting, MeetingSession } from './meeting';
+import { monthlyMessages } from './messages';
 
 export type Speed = 0 | 1 | 2 | 4 | 8;
 /** Real seconds per in-game day at 1× speed. */
@@ -33,6 +35,10 @@ export interface OwnerRecord {
   knownPreference?: DealOption | 'cash';
   lastOffer?: number;
   lastAsk?: number;
+  /** Price softened by neighbours or the RT head talking to them (Milestone 9). */
+  persuadeDiscount?: number;
+  /** How many log entries the player has seen (for unread badges). */
+  read?: number;
 }
 
 export interface Obligation {
@@ -60,6 +66,10 @@ export class Game {
   reputation = 50;
   speed: Speed = 1;
   session: Session | null = null;
+  /** A group meeting in progress. */
+  meetingSession: MeetingSession | null = null;
+  /** Past group meetings (their chat rooms). */
+  readonly meetings: Meeting[] = [];
   readonly records = new Map<string, OwnerRecord>();
   readonly soldOwners = new Set<string>();
   readonly obligations: Obligation[] = [];
@@ -176,11 +186,15 @@ export class Game {
       if (o.mood < 50) o.mood = Math.min(50, o.mood + 1);
       else if (o.mood > 55) o.mood -= 0.5;
     }
-    for (const r of this.records.values()) r.pressureDiscount = Math.max(0, r.pressureDiscount - 0.004);
+    for (const r of this.records.values()) {
+      r.pressureDiscount = Math.max(0, r.pressureDiscount - 0.004);
+      if (r.persuadeDiscount) r.persuadeDiscount = Math.max(0, r.persuadeDiscount - 0.001);
+    }
     this.dev.advanceDay();
     if (this.date().getUTCDate() === 1) {
       const report = closeMonth(this);
       monthlyRules(this);
+      monthlyMessages(this);
       checkObjectives(this);
       this.emit('month');
       this.toast({ kind: report.net >= 0 ? 'good' : 'bad', key: 'toast.month', params: { price: report.net } });

@@ -43,6 +43,7 @@ export class PlotLayer {
   lens: Lens = 'normal';
   private hovered: Plot | null = null;
   private selected: Plot | null = null;
+  private multi: Plot[] = [];
   private lastZoom = 0;
   private outlines = new Map<string, number[]>();
 
@@ -53,6 +54,7 @@ export class PlotLayer {
   setWorld(w: World) {
     this.world = w;
     this.hovered = this.selected = null;
+    this.multi = [];
     this.outlines.clear();
     this.raster?.destroy();
     const g = w.grid;
@@ -71,6 +73,12 @@ export class PlotLayer {
   setHovered(p: Plot | null) {
     if (p === this.hovered) return;
     this.hovered = p;
+    this.redrawHighlights();
+  }
+
+  /** Plots picked for a group meeting. */
+  setMulti(list: Plot[]) {
+    this.multi = list;
     this.redrawHighlights();
   }
 
@@ -154,6 +162,12 @@ export class PlotLayer {
       this.selectG.stroke({ width: 5 * px, color: 0x1b1f26, alpha: 0.6 });
       this.segs(this.selectG, sel);
       this.selectG.stroke({ width: 2.5 * px, color: 0xffd27f, alpha: 1 });
+    }
+    if (this.multi.length) {
+      for (const p of this.multi) this.segs(this.selectG, p);
+      this.selectG.stroke({ width: 4.5 * px, color: 0x1b1f26, alpha: 0.5 });
+      for (const p of this.multi) this.segs(this.selectG, p);
+      this.selectG.stroke({ width: 2.2 * px, color: 0x5fb3a1, alpha: 1 });
     }
     const h = this.hovered;
     if (h && h !== sel) {

@@ -10,7 +10,10 @@ import { hashString } from '../util/random';
 import { band, esc, formatDate, initials, money, ownerName, plotHeading, plotTitle, roadLabel } from './format';
 import type { Game, Speed, Toast } from '../game/Game';
 import { canVisit, type Session } from '../game/negotiation';
-import { renderNegotiation, type NegotiationActions } from './negotiationPanel';
+import { currentEmotion, renderNegotiation, type NegotiationActions } from './negotiationPanel';
+import { renderChats, renderMeeting, renderMulti, type ChatActions, type MeetingActions } from './chatPanel';
+import { portrait } from './portrait';
+import { unreadRooms } from '../game/messages';
 import { BUILDING_TYPES, ROAD_TYPES, buildingType, type BuildingTypeId, type RoadTypeId } from '../game/catalog';
 import type { NewBuilding } from '../game/Development';
 import { demand, monthlyIncome, unitPrice } from '../game/Economy';
@@ -26,7 +29,7 @@ export type Tool = 'select' | 'demolish' | 'road' | 'build' | 'zone';
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T;
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 
-export type PanelMode = 'info' | 'overlay' | 'talk' | 'finance' | 'game' | 'import';
+export type PanelMode = 'info' | 'overlay' | 'talk' | 'finance' | 'game' | 'import' | 'chats' | 'room' | 'meeting' | 'multi';
 
 export interface HudCallbacks {
   selectMap(key: string): void;
@@ -48,6 +51,9 @@ export interface HudCallbacks {
   setZone(z: Zone, brush: number): void;
   importer: ImportActions;
   negotiation: NegotiationActions;
+  chats: ChatActions;
+  meeting: MeetingActions;
+  multi: { meet(): void; clear(): void; focus(id: string): void; remove(id: string): void; addNeighbors(id: string): void };
 }
 
 const DEV_KEY = 'kotabaru.dev';
@@ -71,6 +77,14 @@ export class Hud {
   zone: Zone = 1;
   brush = 8;
   private selected: Plot | null = null;
+  /** Owner whose chat room is open (panel 'room' or 'talk'). */
+  roomOwner: string | null = null;
+  /** Meeting room open in panel 'meeting'. */
+  roomMeeting: string | null = null;
+  /** Plots picked with shift+click. */
+  multi: string[] = [];
+  /** The map info card was closed by the player. */
+  infoHidden = false;
   private tooltipPlot: Plot | null = null;
 
   constructor(private cb: HudCallbacks, private overlay: OverlayManager) {
@@ -89,6 +103,8 @@ export class Hud {
     this.game = game;
     this.session = null;
     this.panel = 'info';
+    this.multi = [];
+    this.roomOwner = this.roomMeeting = null;
     this.currentKey = key;
     this.selected = null;
     this.renderAll();
@@ -186,9 +202,28 @@ export class Hud {
   /** Switch the side panel to a conversation. */
   showSession(s: Session | null) {
     this.session = s;
+    if (s) this.roomOwner = s.ownerId;
     this.panel = s ? 'talk' : 'info';
     this.renderSidePanel();
     this.renderToolbar();
+  }
+
+  /** Chat list, one person's room, a meeting, or the multi-selection. */
+  openRoom(kind: 'chats' | 'room' | 'meeting' | 'multi', id?: string) {
+    if (kind === 'room') this.roomOwner = id ?? this.roomOwner;
+    if (kind === 'meeting') this.roomMeeting = id ?? this.roomMeeting;
+    this.panel = kind;
+    this.renderSidePanel();
+    this.renderToolbar();
+    this.updateChatBadge();
+  }
+
+  updateChatBadge() {
+    const b = document.getElementById('chat-btn');
+    if (!b || !this.game) return;
+    const n = unreadRooms(this.game) + this.game.meetings.filter((m) => m.read < m.log.length).length;
+    b.innerHTML = `💬 ${t('chat.title')}${n ? `<i class="badge">${n}</i>` : ''}`;
+    b.classList.toggle('active', this.panel === 'chats' || this.panel === 'room' || this.panel === 'meeting');
   }
 
   openPanel(mode: 'finance' | 'game' | 'info' | 'import') {
@@ -218,6 +253,7 @@ export class Hud {
       </div>`;
     el.querySelectorAll<HTMLElement>('[data-speed]').forEach((b) => (b.onclick = () => this.cb.setSpeed(parseInt(b.dataset.speed!, 10) as Speed)));
     document.getElementById('stat-money')!.onclick = () => this.openPanel(this.panel === 'finance' ? 'info' : 'finance');
+    this.updateChatBadge();
   }
 
   showToast(toast: Toast) {
@@ -297,6 +333,7 @@ export class Hud {
       <span class="spacer"></span>
       <div id="stats"></div>
       <span class="spacer"></span>
+      <button id="chat-btn"></button>
       <button id="mute" class="icon" title="${t('set.sound')}" aria-label="${t('set.sound')}">${sound.muted ? '🔇' : '🔊'}</button>
       <button id="game-menu">☰ ${t('top.game')}</button>
       <label>${t('top.language')}
@@ -312,6 +349,10 @@ export class Hud {
     $<HTMLSelectElement>('#lang-select').onchange = (e) => setLang((e.target as HTMLSelectElement).value as never);
     $('#game-menu').onclick = () => this.openPanel(this.panel === 'game' ? 'info' : 'game');
     $('#open-import').onclick = () => this.openPanel(this.panel === 'import' ? 'info' : 'import');
+    $('#chat-btn').onclick = () => {
+      const inChat = this.panel === 'chats' || this.panel === 'room' || this.panel === 'meeting';
+      if (inChat) this.openPanel('info'); else this.openRoom('chats');
+    };
     $('#mute').onclick = () => { sound.unlock(); sound.setMuted(!sound.muted); this.renderTopBar(); };
     this.updateStats();
   }
@@ -320,7 +361,20 @@ export class Hud {
   private renderSidePanel(): void {
     const el = $('#sidepanel');
     el.classList.toggle('plot', this.panel === 'info' && !!this.selected);
-    el.classList.toggle('talk', this.panel === 'talk');
+    el.classList.toggle('talk', ['talk', 'room', 'meeting', 'chats'].includes(this.panel));
+    el.hidden = false;
+    const g0 = this.game;
+    if (g0 && g0.meetingSession && !g0.meetingSession.ended && this.panel !== 'meeting' && this.panel !== 'room') {
+      this.panel = 'meeting';
+      this.roomMeeting = g0.meetingSession.meeting.id;
+    }
+    if (this.panel === 'chats' && g0) return renderChats(el, g0, this.cb.chats);
+    if (this.panel === 'room' && g0 && this.roomOwner) return renderNegotiation(el, g0, this.roomOwner, this.session, this.cb.negotiation);
+    if (this.panel === 'meeting' && g0 && this.roomMeeting) {
+      const m = g0.meetings.find((x) => x.id === this.roomMeeting);
+      if (m) return renderMeeting(el, g0, m, g0.meetingSession, this.cb.meeting);
+    }
+    if (this.panel === 'multi' && g0 && this.multi.length) return renderMulti(el, g0, this.multi, this.cb.multi);
     if (this.panel === 'overlay') return this.renderOverlayPanel(el);
     if (this.panel === 'import') return renderImport(el, this.cb.importer);
     if (this.panel === 'game') {
@@ -334,15 +388,17 @@ export class Hud {
       $('#panel-close').onclick = () => this.openPanel('info');
       return;
     }
-    if (this.panel === 'talk' && this.session && this.game) return renderNegotiation(el, this.game, this.session, this.cb.negotiation);
+    if (this.panel === 'talk' && this.session && this.game) return renderNegotiation(el, this.game, this.session.ownerId, this.session, this.cb.negotiation);
     if (this.selected && this.world) return this.renderPlotPanel(el, this.selected, this.world);
     if (this.selectedNew && this.game) return this.renderNewBuildingPanel(el, this.selectedNew, this.game);
     const m = this.map;
     if (!m) { el.innerHTML = ''; return; }
+    if (this.infoHidden) { el.hidden = true; el.innerHTML = ''; return; }
     const w = m.bounds.maxX - m.bounds.minX, h = m.bounds.maxY - m.bounds.minY;
     const world = this.world;
     const stateArea = world ? world.plots.filter((p) => p.ownerId === 'o_state').reduce((a, p) => a + p.area, 0) : 0;
     el.innerHTML = `
+      <div class="panel-head"><span></span><button id="panel-close" class="icon" title="${t('panel.close')}" aria-label="${t('panel.close')}">✕</button></div>
       <h2>${esc(m.name)}</h2>
       <p class="hint">${t('info.clickHint')}</p>
       <dl>
@@ -362,6 +418,7 @@ export class Hud {
       ${this.devMode ? `<button id="dev-money" class="wide">${t('dev.addMoney')}</button>` : ''}
       <label class="check dev"><input id="dev-toggle" type="checkbox" ${this.devMode ? 'checked' : ''}/> ${t('dev.toggle')}</label>
       <p class="hint">${t('help.controls')}</p>`;
+    $('#panel-close').onclick = () => { this.infoHidden = true; this.renderSidePanel(); this.renderToolbar(); };
     $<HTMLInputElement>('#dev-toggle').onchange = (e) => {
       this.devMode = (e.target as HTMLInputElement).checked;
       try { localStorage.setItem(DEV_KEY, this.devMode ? '1' : '0'); } catch { /* ignore */ }
@@ -442,8 +499,9 @@ export class Hud {
 
       <h3>${this.game?.ownsPlot(p.id) && o.kind !== 'state' ? t('panel.formerOwner') : t('panel.owner')}</h3>
       <div class="owner">
-        <div class="avatar" style="--h:${avatarHue}">${esc(initials(o.name || name))}</div>
+        <span class="face">${o.kind === 'state' ? `<div class="avatar" style="--h:${avatarHue}">${esc(initials(o.name || name))}</div>` : portrait(o, currentEmotion(o, this.game?.records.get(o.id)?.log ?? []), 56)}</span>
         <div><b>${esc(name)}</b><small>${esc(subtitle)}</small></div>
+        ${this.game?.records.get(o.id)?.log.length ? `<button id="panel-chat" class="icon" title="${t('chat.open')}">💬</button>` : ''}
       </div>
       ${isPerson ? `
         <p class="muted">${t(o.yearsLived > 0 && o.occupation !== 'landlord' ? 'panel.lived' : 'panel.since', { n: o.yearsLived })}</p>
@@ -484,6 +542,8 @@ export class Hud {
 
     $('#panel-close').onclick = () => this.cb.clearSelection();
     document.getElementById('panel-visit')?.addEventListener('click', () => this.cb.visit(p.id));
+    document.getElementById('panel-chat')?.addEventListener('click', () => this.openRoom('room', o.id));
+    document.getElementById('panel-multi')?.addEventListener('click', () => this.cb.multi.addNeighbors(p.id));
     document.getElementById('panel-demolish')?.addEventListener('click', () => this.cb.demolishPlot(p.id));
     el.querySelectorAll<HTMLElement>('[data-plot]').forEach((b) => (b.onclick = () => this.cb.focusPlot(b.dataset.plot!)));
   }
@@ -513,7 +573,8 @@ export class Hud {
     const label = o.kind === 'state' ? t('panel.applyState') : t('panel.visit');
     return `${summary}
       <button id="panel-visit" class="primary wide" ${check.block ? 'disabled' : ''}>${label}</button>
-      ${check.block === 'cooldown' || check.block === 'angry' ? `<p class="hint center">${t('panel.visitBlocked', { days: check.days ?? 1 })}</p>` : ''}`;
+      ${check.block === 'cooldown' || check.block === 'angry' ? `<p class="hint center">${t('panel.visitBlocked', { days: check.days ?? 1 })}</p>` : ''}
+      ${o.kind !== 'state' ? `<button id="panel-multi" class="wide">👥 ${t('multi.addNeighbors')}</button><p class="hint center">${t('multi.shiftHint')}</p>` : ''}`;
   }
 
   private settingsHtml(): string {
@@ -618,13 +679,15 @@ export class Hud {
       <div class="segmented">${lenses.map(([l, k, key]) => `<button data-lens="${l}" class="${this.lens === l ? 'active' : ''}" title="${key}">${t(k)}</button>`).join('')}</div>
       <span class="sep"></span>
       <button id="tb-overlay" class="${this.panel === 'overlay' ? 'active' : ''}">🛰 ${t('tool.overlay')}</button>
-      <button id="tb-reset">⌂ ${t('tool.resetView')}</button>`;
+      <button id="tb-reset">⌂ ${t('tool.resetView')}</button>
+      ${this.infoHidden ? `<button id="tb-info" title="${t('info.show')}">ⓘ ${t('info.show')}</button>` : ''}`;
     el.querySelectorAll<HTMLElement>('[data-tool]').forEach((b) => (b.onclick = () => {
       if (this.panel === 'overlay') { this.panel = this.session ? 'talk' : 'info'; this.overlay.adjusting = false; this.renderAll(); }
       this.cb.setTool(b.dataset.tool as Tool);
     }));
     $('#tb-overlay').onclick = () => { this.panel = 'overlay'; this.renderAll(); };
     $('#tb-reset').onclick = () => this.cb.resetView();
+    document.getElementById('tb-info')?.addEventListener('click', () => { this.infoHidden = false; this.openPanel('info'); });
     el.querySelectorAll<HTMLElement>('[data-lens]').forEach((b) => (b.onclick = () => this.cb.setLens(b.dataset.lens as Lens)));
   }
 

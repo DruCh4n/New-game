@@ -22,7 +22,9 @@ import { COLORS } from './render/styles';
 import { World } from './game/World';
 import type { Plot } from './game/types';
 import { Game } from './game/Game';
-import { acceptCounter, giveGift, leave, listen, makeOffer, pressure, startVisit } from './game/negotiation';
+import { acceptCounter, askHelp, giveGift, leave, listen, makeOffer, pressure, startVisit } from './game/negotiation';
+import { acceptAsks, communityFund, leaveMeeting, listenAll, offerAll, presentPlan, signAll, startMeeting } from './game/meeting';
+import { resetMeetingDraft } from './ui/chatPanel';
 import { resetDraft } from './ui/negotiationPanel';
 import { DevLayer } from './render/DevLayer';
 import { Terrain } from './render/Terrain';
@@ -154,7 +156,8 @@ async function boot() {
         if (e === 'scenario') onScenario(g);
         if (e === 'month') {
           writeSlot('auto', serialize(g, currentKey));
-          if (hud.panel === 'finance') hud.refreshPanel();
+          if (hud.panel === 'finance' || hud.panel === 'chats') hud.refreshPanel();
+          hud.updateChatBadge();
         }
         if (e === 'day' && selected && hud.panel === 'info') hud.refreshPanel();
       });
@@ -203,7 +206,57 @@ async function boot() {
     }
   }
 
+  /** Shift+click: add or remove a plot from the meeting selection. */
+  function toggleMulti(p: Plot) {
+    const list = hud.multi;
+    if (!list.length && selected && selected !== p) list.push(selected.id);
+    const i = list.indexOf(p.id);
+    if (i >= 0) list.splice(i, 1); else list.push(p.id);
+    setMulti(list);
+  }
+
+  function setMulti(ids: string[]) {
+    hud.multi = ids;
+    plotLayer.setMulti(ids.map((id) => world!.plot(id)!).filter(Boolean));
+    if (ids.length) {
+      selected = null;
+      plotLayer.setSelected(null);
+      hud.openRoom('multi');
+    } else if (hud.panel === 'multi') hud.openPanel('info');
+  }
+
+  /** A plot plus its unsold private neighbours. */
+  function withNeighbors(id: string): string[] {
+    const w = world!, p = w.plot(id)!;
+    const out = [id];
+    for (const nid of p.neighbors) {
+      const np = w.plot(nid)!;
+      if (game?.ownsPlot(nid) || w.ownerOf(np).kind === 'state' || out.includes(nid)) continue;
+      out.push(nid);
+    }
+    return out;
+  }
+
+  function meetingAct(fn: (g: Game, m: NonNullable<Game['meetingSession']>) => unknown) {
+    if (!game?.meetingSession) return;
+    sound.play('talk');
+    fn(game, game.meetingSession);
+    hud.refreshPanel();
+    hud.updateStats();
+  }
+
+  function endMeetingView() {
+    if (!game) return;
+    const m = game.meetingSession;
+    if (m && !m.ended) leaveMeeting(game, m);
+    game.meetingSession = null;
+    game.pauseForTalk(false);
+    setMulti([]);
+    hud.openPanel('info');
+  }
+
   function select(p: Plot | null) {
+    if (p && hud.multi.length) setMulti([]);
     selected = p;
     plotLayer.setSelected(p);
     hud.select(p);
@@ -395,6 +448,40 @@ async function boot() {
       removeNewBuilding: (id) => { game?.dev.removeBuilding(id); hud.select(null); },
       addMoney: () => game?.addMoney(game.world.region.landPerM2 * 15000),
       setZone: (z, b) => { zoneSel = z; brushR = b; },
+      chats: {
+        openOwner: (id) => hud.openRoom('room', id),
+        openMeeting: (id) => hud.openRoom('meeting', id),
+        close: () => hud.openPanel('info'),
+      },
+      meeting: {
+        present: () => meetingAct(presentPlan),
+        listenAll: () => meetingAct(listenAll),
+        fund: () => meetingAct(communityFund),
+        offer: (pct, opts) => meetingAct((g, m) => offerAll(g, m, pct, opts)),
+        acceptAsks: () => meetingAct(acceptAsks),
+        sign: () => meetingAct((g, m) => { if (signAll(g, m)) sound.play('coin'); }),
+        leave: () => meetingAct(leaveMeeting),
+        back: () => {
+          if (game?.meetingSession && hud.roomMeeting === game.meetingSession.meeting.id) endMeetingView();
+          else hud.openRoom('chats');
+        },
+        openOwner: (id) => hud.openRoom('room', id),
+      },
+      multi: {
+        meet: () => {
+          if (!game || game.session || game.meetingSession) return;
+          resetMeetingDraft();
+          const m = startMeeting(game, hud.multi);
+          if (!m) return;
+          game.pauseForTalk(true);
+          sound.play('talk');
+          hud.openRoom('meeting', m.meeting.id);
+        },
+        clear: () => setMulti([]),
+        focus: (id) => { const p = world?.plot(id); if (p) camera.centerOn(p.cx, p.cy, 3); },
+        remove: (id) => setMulti(hud.multi.filter((x) => x !== id)),
+        addNeighbors: (id) => setMulti(withNeighbors(id)),
+      },
       gameMenu: {
         save: (slot) => {
           if (!game) return;
@@ -433,6 +520,23 @@ async function boot() {
         gift: () => talk((g, s) => giveGift(g, s)),
         pressure: () => talk((g, s) => pressure(g, s)),
         leave: () => talk((g, s) => leave(g, s)),
+        askHelp: (kind) => talk((g, s) => askHelp(g, s, kind)),
+        visitOwner: (ownerId) => {
+          const o = world?.owner(ownerId);
+          const pid = o?.plotIds.find((id) => !game?.ownsPlot(id));
+          if (!pid || !game) return;
+          const p = world!.plot(pid)!;
+          selected = p;
+          plotLayer.setSelected(p);
+          resetDraft();
+          game.pauseForTalk(true);
+          hud.showSession(startVisit(game, p));
+        },
+        showOnMap: (ownerId) => {
+          const o = world?.owner(ownerId);
+          if (o?.plotIds.length) { const p = world!.plot(o.plotIds[0])!; select(p); camera.centerOn(p.cx, p.cy, 3); }
+        },
+        chats: () => hud.openRoom('chats'),
         back: () => {
           if (game?.session && !game.session.ended) leave(game, game.session);
           if (game) { game.session = null; game.pauseForTalk(false); }
@@ -543,9 +647,14 @@ async function boot() {
       plotLayer.setHovered(p);
       hud.showTooltip(p, sx, sy);
     },
-    onClick: (sx, sy) => {
+    onClick: (sx, sy, ev) => {
       if (overlay.active()) return;
-      if (game?.session) return; // finish or leave the conversation first
+      if (game?.session || game?.meetingSession) return; // finish or leave the conversation first
+      if (ev?.shiftKey && tool === 'select') {
+        const p = pickAt(sx, sy);
+        if (p) toggleMulti(p);
+        return;
+      }
       if (toolClick(sx, sy)) return;
       const [wx, wy] = camera.screenToWorld(sx, sy);
       const nb = game?.dev.buildingAt(wx, wy);
@@ -568,12 +677,13 @@ async function boot() {
   window.addEventListener('keydown', (e) => {
     if ((e.target as HTMLElement)?.closest('input, select, textarea')) return;
     if (e.key === 'Home' && map) camera.fitBounds(map.bounds, 40, false);
-    if (e.key === 'Escape' && !game?.session) {
+    if (e.key === 'Escape' && !game?.session && !game?.meetingSession) {
       if (roadPoints.length) { roadPoints = []; devLayer.clearGhost(); }
       else if (tool !== 'select') setTool('select');
+      else if (hud.multi.length) setMulti([]);
       else select(null);
     }
-    if (!game?.session) {
+    if (!game?.session && !game?.meetingSession) {
       const k = e.key.toLowerCase();
       if (k === 'v') setTool('select');
       if (k === 'x') setTool('demolish');
@@ -587,7 +697,7 @@ async function boot() {
       if (tool === 'road' && e.key === 'Enter') finishRoad();
       if (tool === 'road' && e.key === 'Backspace') { roadPoints.splice(-2, 2); if (cursor) previewAt(cursor.sx, cursor.sy); }
     }
-    if (e.key === ' ' && game && !game.session) {
+    if (e.key === ' ' && game && !game.session && !game.meetingSession) {
       e.preventDefault();
       game.setSpeed(game.speed === 0 ? 1 : 0);
     }

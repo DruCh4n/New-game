@@ -22,6 +22,8 @@ export interface LogEntry {
   /** Random variant index; the text table picks variants[v % n]. */
   v?: number;
   opts?: DealOption[];
+  /** Someone else speaking in this room (a neighbour helping out, or a meeting attendee). */
+  by?: string;
 }
 
 export interface Session {
@@ -41,6 +43,8 @@ export interface Session {
   liked: Set<DealOption>;
   /** One extra round is allowed after patience runs out while they're countering. */
   graceUsed: boolean;
+  /** Helpers already asked during this visit (owner ids). */
+  helped?: string[];
   ended: boolean;
   outcome?: 'sold' | 'left' | 'tired' | 'angry' | 'refused' | 'closed';
 }
@@ -157,7 +161,7 @@ export function minimumPrice(game: Game, o: Owner, value: number): number {
   if (o.holdout) return Infinity;
   const rec = game.record(o.id);
   if (o.kind === 'state') return value * 1.1 * (game.reputation < 40 ? 1.25 : 1);
-  const base = Math.max(0.6, o.minFactor + rec.expectationBoost - rec.pressureDiscount + game.difficulty.ownerPriceOffset);
+  const base = Math.max(0.6, o.minFactor + rec.expectationBoost - rec.pressureDiscount - (rec.persuadeDiscount ?? 0) + game.difficulty.ownerPriceOffset);
   const mood = o.mood >= 50 ? 1 - (o.mood - 50) * 0.0016 : 1 + (50 - o.mood) * 0.005;
   const rep = game.reputation >= 50 ? 1 - (game.reputation - 50) * 0.0014 : 1 + (50 - game.reputation) * 0.004;
   const neighbors = 1 - 0.2 * neighborsSoldShare(game, o).share;
@@ -360,13 +364,29 @@ export function acceptCounter(game: Game, s: Session): OfferResult {
 }
 
 function closeDeal(game: Game, s: Session, o: Owner, cash: number, opts: DealOption[]) {
+  settle(game, o, s.plotIds, s.value, cash, opts, s.pressured);
+  say(game, o, acceptKey(o), { price: cash }, s.round);
+  note(game, o, 'system.sold', { price: cash, n: s.plotIds.length });
+  end(game, s, 'sold');
+  game.toast({ kind: 'good', key: 'toast.sold', params: { ownerId: o.id, price: cash } });
+}
+
+export function acceptKey(o: Owner): string {
+  return o.kind === 'state' ? 'state.accept'
+    : o.kind !== 'person' ? 'accept.company'
+      : o.finances === 'needs_money' || has(o, 'wantsMove') ? 'accept.happy'
+        : o.attachment > 65 ? 'accept.sad' : 'accept.neutral';
+}
+
+/** Pays for and transfers a deal (shared by one-on-one visits and group meetings). */
+export function settle(game: Game, o: Owner, plotIds: string[], value: number, cash: number, opts: DealOption[], pressured = false) {
   const rec = game.record(o.id);
-  game.addMoney(-immediateCost(game, s.value, cash, opts));
+  game.addMoney(-immediateCost(game, value, cash, opts));
   for (const k of opts) if (k === 'apartment' || k === 'shop') game.obligations.push({ ownerId: o.id, kind: k, day: game.day });
 
-  const perceived = perceivedValue(game, o, s.value, cash, opts);
-  const ratio = perceived / s.value;
-  if (o.kind !== 'state' && !s.pressured) {
+  const perceived = perceivedValue(game, o, value, cash, opts);
+  const ratio = perceived / value;
+  if (o.kind !== 'state' && !pressured) {
     if (ratio >= 1.35) {
       game.addReputation(2);
       // Neighbours hear about the generous deal and raise their expectations.
@@ -376,17 +396,98 @@ function closeDeal(game: Game, s: Session, o: Owner, cash: number, opts: DealOpt
       }
     } else if (ratio >= 1) game.addReputation(1);
   }
-  const key = o.kind === 'state' ? 'state.accept'
-    : o.kind !== 'person' ? 'accept.company'
-      : o.finances === 'needs_money' || has(o, 'wantsMove') ? 'accept.happy'
-        : o.attachment > 65 ? 'accept.sad' : 'accept.neutral';
-  say(game, o, key, { price: cash }, s.round);
-  note(game, o, 'system.sold', { price: cash, n: s.plotIds.length });
-  game.setStatus(s.plotIds, 'sold');
+  game.setStatus(plotIds, 'sold');
   if (o.kind !== 'state') game.soldOwners.add(o.id);
   rec.finalRefusal = false;
-  end(game, s, 'sold');
-  game.toast({ kind: 'good', key: 'toast.sold', params: { ownerId: o.id, price: cash } });
+}
+
+// ------------------------------------------------------------------ help from others
+
+const PERSUADE_CAP = 0.16;
+
+/** A neighbour who sold to you and is willing to put in a good word. */
+export function neighborHelper(game: Game, o: Owner): Owner | null {
+  if (o.kind !== 'person') return null;
+  let best: Owner | null = null, bestScore = 0;
+  for (const r of o.relations) {
+    if (r.kind === 'rival' || !game.soldOwners.has(r.ownerId)) continue;
+    const n = game.world.owner(r.ownerId);
+    if (!n || n.mood < 45) continue;
+    const score = REL_WEIGHT[r.kind] * (1 + r.value / 100) * (n.mood / 50);
+    if (score > bestScore) { best = n; bestScore = score; }
+  }
+  return best;
+}
+
+/** The neighbourhood head (Ketua RT) nearest to this owner, if any. */
+export function rtHeadFor(game: Game, o: Owner): Owner | null {
+  if (o.kind !== 'person' || has(o, 'rtHead')) return null;
+  const w = game.world;
+  const home = w.plot(o.plotIds[0]);
+  if (!home) return null;
+  const rel = o.relations.map((r) => w.owner(r.ownerId)).find((n) => n && has(n, 'rtHead'));
+  if (rel) return rel;
+  let best: Owner | null = null, bestD = 260;
+  for (const n of rtHeads(game)) {
+    const p = w.plot(n.plotIds[0]);
+    if (!p) continue;
+    const d = Math.hypot(p.cx - home.cx, p.cy - home.cy);
+    if (d < bestD) { best = n; bestD = d; }
+  }
+  return best;
+}
+
+const rtCache = new WeakMap<Game, Owner[]>();
+function rtHeads(game: Game): Owner[] {
+  let l = rtCache.get(game);
+  if (!l) { l = game.world.owners.filter((n) => n.kind === 'person' && has(n, 'rtHead')); rtCache.set(game, l); }
+  return l;
+}
+
+/** Will the RT head take your side? */
+export function rtOnSide(game: Game, rt: Owner): boolean {
+  return game.soldOwners.has(rt.id) ? rt.mood >= 40 : rt.mood >= 58;
+}
+
+export function helpCost(game: Game, s: Session, kind: 'neighbor' | 'rt'): number {
+  const step = game.world.region.priceStep / 5;
+  return Math.max(step, Math.round((s.value * (kind === 'rt' ? 0.008 : 0.004)) / step) * step);
+}
+
+function sayBy(game: Game, o: Owner, by: Owner, key: string, params?: LogEntry['params'], round = 0) {
+  const v = rngFor(game, by, key, round).int(0, 9999);
+  game.record(o.id).log.push({ day: game.day, who: 'owner', key, params, v, by: by.id });
+}
+
+/** Ask a neighbour who sold, or the RT head, to talk to this owner. */
+export function askHelp(game: Game, s: Session, kind: 'neighbor' | 'rt'): 'helped' | 'refused' | 'unavailable' {
+  if (s.ended) return 'unavailable';
+  const o = game.world.owner(s.ownerId)!;
+  const helper = kind === 'neighbor' ? neighborHelper(game, o) : rtHeadFor(game, o);
+  if (!helper || s.helped?.includes(helper.id)) return 'unavailable';
+  const cost = helpCost(game, s, kind);
+  if (game.money < cost) return 'unavailable';
+  const rec = game.record(o.id);
+  (s.helped ??= []).push(helper.id);
+  act(game, o, kind === 'rt' ? 'player.askRt' : 'player.askNeighbor', { neighbor: helper.name, cost });
+  if (kind === 'rt' && !rtOnSide(game, helper)) {
+    sayBy(game, o, helper, 'persuade.rt.refuse', undefined, s.round);
+    game.changeMood(o, -3);
+    return 'refused';
+  }
+  game.addMoney(-cost);
+  game.changeMood(helper, 2);
+  sayBy(game, o, helper, kind === 'rt' ? 'persuade.rt.say' : 'persuade.neighbor.say', { name: o.name }, s.round);
+  if (o.holdout) {
+    say(game, o, 'persuade.react.no', undefined, s.round);
+    return 'refused';
+  }
+  game.changeMood(o, kind === 'rt' ? 7 : 9);
+  rec.persuadeDiscount = Math.min(PERSUADE_CAP, (rec.persuadeDiscount ?? 0) + (kind === 'rt' ? 0.07 : 0.05));
+  s.ask = null;
+  s.patience += 1;
+  say(game, o, 'persuade.react.yes', undefined, s.round);
+  return 'helped';
 }
 
 export function listen(game: Game, s: Session): void {

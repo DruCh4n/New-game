@@ -223,6 +223,106 @@ const en: DialogueTable = {
   'player.leave': ['You thank them and leave.'],
 
   // ---------- system notes ----------
+  // ---------- help from others (Milestone 9) ----------
+  'persuade.neighbor.say': [
+    '{name}, listen to me. They paid me properly and on time. My new place is fine, really.',
+    'I was worried too, {name}. But they kept every word. Think about your family.',
+    'Come on, {name}. We had a good run here, but this is a fair chance. Don\'t be the last one.',
+  ],
+  'persuade.rt.say': [
+    'As your RT head I\'ve looked at this carefully, {name}. The offer is honest. I support it.',
+    '{name}, the neighbourhood is changing whether we like it or not. Better to leave with a good deal.',
+  ],
+  'persuade.rt.refuse': [
+    'No. I won\'t ask my people to sell to you. Not after how you\'ve behaved here.',
+    'Don\'t drag me into this. Earn their trust yourself.',
+  ],
+  'persuade.react.yes': [
+    'Hm. If they say so... maybe I\'ve been too stubborn. Let\'s talk again.',
+    'Well. I didn\'t expect that. All right, I\'m listening.',
+    'You brought them here? ... Fine. Make me a fair offer.',
+  ],
+  'persuade.react.no': [
+    'With respect, it doesn\'t matter who you bring. This house stays.',
+    'I know you mean well. My answer is still no.',
+  ],
+  'player.askNeighbor': ['You ask {neighbor} to come and put in a good word (thank-you {cost}).'],
+  'player.askRt': ['You ask the RT head, {neighbor}, to speak for you (RT contribution {cost}).'],
+
+  // ---------- group meetings ----------
+  'meet.open': [
+    'We\'re all here. Some of us have questions. Tell us plainly what you want.',
+    'Thank you for inviting us together. It\'s better this way, no whispering behind backs.',
+  ],
+  'meet.open.rt': [
+    'As RT head I\'ve gathered everyone. Speak openly, we\'ll decide together.',
+    'Bismillah. Let\'s keep this orderly. One person speaks at a time, starting with our guest.',
+  ],
+  'meet.grumble': [
+    'I only came to see what kind of person you are.',
+    'I hope this is not another trick.',
+    'We all know what happened in the other kampung. Be careful what you promise.',
+  ],
+  'meet.hopeful': ['I\'m open to it, if the price is right.', 'Let\'s hear the offer first, everyone.'],
+  'meet.present.good': [
+    'That sounds well thought out. People here can work with that.',
+    'New homes, a proper road... I can see it. Go on.',
+  ],
+  'meet.present.bad': [
+    'Pretty pictures. We\'ve heard about your reputation, though.',
+    'Plans are easy to draw. Will you keep your word?',
+  ],
+  'meet.fund': [
+    'For the musholla and the gutters? That\'s generous. People will remember.',
+    'Alhamdulillah. The whole kampung will benefit from that.',
+  ],
+  'meet.yes': ['I agree. I\'ll sign.', 'That works for me.', 'Fine, I accept.', 'Deal. My wife will be pleased.'],
+  'meet.spokesYes': [
+    'I think it\'s a fair offer, and I\'ll sign. Neighbours, think it over.',
+    'As your RT head I accept. I won\'t tell anyone what to do, but I think it\'s fair.',
+  ],
+  'meet.maybe': ['Close. Make it {price} and I\'ll sign.', 'For {price}, I\'m in.', 'Almost. {price}, then we shake hands.'],
+  'meet.no': ['Not at that price.', 'No, sorry. Too low for me.', 'I\'ll pass.'],
+  'meet.insult': ['That\'s an insult to all of us.', 'You think we\'re fools?', 'Shameful. I\'m telling everyone about this.'],
+  'meet.tired': ['I think we\'re done for today. Come back when you\'re serious.', 'Enough. We\'re going home.'],
+  'meet.signed': ['Then it\'s settled. May it be a blessing for everyone.', 'Good. Let\'s get the papers done quickly.'],
+  'player.present': ['You unroll the plans and explain the project.'],
+  'player.listenAll': ['You ask everyone what matters to them.'],
+  'player.fund': ['You offer a contribution to the kampung fund ({cost}).'],
+  'player.offerAll': ['You offer everyone {pct}% of their property\'s value.'],
+  'player.acceptAsks': ['You accept the prices {n} of them asked for.'],
+  'player.sign': ['You sign with {n} owner(s) and pay {cost}.'],
+  'system.meeting': ['Meeting with {n} owners'],
+  'system.meetingPersonal': ['Group meeting ({n} owners)'],
+  'system.absent': ['Didn\'t come: {names}'],
+  'system.meetingFailed': ['Not enough people came. The meeting is off.'],
+  'system.moreSpoke': ['…and {n} more had their say.'],
+  'system.tally': ['Agree: {yes} · Want more: {maybe} · Refuse: {no}'],
+  'system.lastChance': ['People are getting restless. Sign with those who agreed, or leave.'],
+  'system.signed': ['{n} owner(s) signed. Paid {cost}.'],
+
+  // ---------- messages between visits ----------
+  'msg.reconsider': [
+    'Assalamualaikum. About your offer last time... things are hard at home. Is it still open? Please come by.',
+    'Good evening. I\'ve been thinking. Maybe we can talk again about the house. Come when you can.',
+  ],
+  'msg.lastOne': [
+    'Almost everyone around me has sold. It\'s getting lonely here. Let\'s talk.',
+    'With all the construction, this street isn\'t home any more. Come by, I\'m ready to discuss.',
+  ],
+  'msg.curious': [
+    'Hello, I live next to the land you bought. If you\'re looking for more, maybe we could talk?',
+    'Good afternoon. My neighbour said you were fair with him. I might be interested in selling too.',
+  ],
+  'msg.angry': ['Don\'t think I\'ve forgotten how you insulted me.', 'Everyone here knows what you offered me. Shameful.'],
+  'msg.promise.apartment': [
+    'Excuse me, when will the apartment you promised me be ready? We\'re still renting.',
+    'It\'s been a long time. You promised us a flat. Did you forget?',
+  ],
+  'msg.promise.shop': [
+    'When can I open in the shop you promised me? My customers keep asking.',
+    'My savings are running out. Where is the shop unit you promised?',
+  ],
   'system.visit': ['Visit {n}'],
   'system.sold': ['Sold to you for {price}.'],
 };
@@ -395,6 +495,106 @@ const id: DialogueTable = {
   'player.gift': ['Anda membawa oleh-oleh ({cost}).'],
   'player.pressure': ['Anda menyiratkan bahwa lingkungan ini akan berubah, dengan atau tanpa mereka.'],
   'player.leave': ['Anda berterima kasih dan pamit.'],
+  // ---------- bantuan pihak lain (Milestone 9) ----------
+  'persuade.neighbor.say': [
+    '{name}, dengar saya. Mereka bayar saya dengan layak dan tepat waktu. Rumah baru saya enak kok.',
+    'Saya juga dulu khawatir, {name}. Tapi mereka menepati semua janjinya. Pikirkan keluargamu.',
+    'Ayolah, {name}. Kita sudah lama di sini, tapi ini kesempatan yang adil. Jangan jadi yang terakhir.',
+  ],
+  'persuade.rt.say': [
+    'Sebagai ketua RT saya sudah pelajari baik-baik, {name}. Tawarannya jujur. Saya mendukung.',
+    '{name}, lingkungan ini akan berubah, suka atau tidak. Lebih baik pergi dengan kesepakatan yang baik.',
+  ],
+  'persuade.rt.refuse': [
+    'Tidak. Saya tidak akan minta warga saya menjual ke Anda. Tidak setelah kelakuan Anda di sini.',
+    'Jangan bawa-bawa saya. Dapatkan kepercayaan mereka sendiri.',
+  ],
+  'persuade.react.yes': [
+    'Hm. Kalau mereka bilang begitu... mungkin saya terlalu keras kepala. Mari bicara lagi.',
+    'Wah. Saya tidak menyangka. Baiklah, saya dengarkan.',
+    'Anda bawa mereka ke sini? ... Ya sudah. Beri saya tawaran yang adil.',
+  ],
+  'persuade.react.no': [
+    'Maaf, siapa pun yang Anda bawa, rumah ini tetap tidak dijual.',
+    'Saya tahu niat Anda baik. Jawaban saya tetap tidak.',
+  ],
+  'player.askNeighbor': ['Anda meminta {neighbor} datang dan membantu membujuk (uang terima kasih {cost}).'],
+  'player.askRt': ['Anda meminta ketua RT, {neighbor}, bicara untuk Anda (sumbangan RT {cost}).'],
+
+  // ---------- musyawarah ----------
+  'meet.open': [
+    'Kami semua sudah hadir. Ada yang mau bertanya. Silakan sampaikan terus terang maksud Anda.',
+    'Terima kasih sudah mengundang kami bersama. Lebih baik begini, tidak ada bisik-bisik di belakang.',
+  ],
+  'meet.open.rt': [
+    'Sebagai ketua RT saya sudah kumpulkan warga. Silakan bicara terbuka, kita putuskan bersama.',
+    'Bismillah. Kita tertib ya. Satu-satu bicaranya, dimulai dari tamu kita.',
+  ],
+  'meet.grumble': [
+    'Saya datang cuma mau lihat orang seperti apa Anda.',
+    'Semoga ini bukan akal-akalan lagi.',
+    'Kita semua tahu apa yang terjadi di kampung sebelah. Hati-hati dengan janji Anda.',
+  ],
+  'meet.hopeful': ['Saya terbuka, asal harganya pas.', 'Kita dengar dulu tawarannya, Bapak-Ibu.'],
+  'meet.present.good': [
+    'Kedengarannya matang. Warga di sini bisa terima itu.',
+    'Rumah baru, jalan yang layak... saya bisa bayangkan. Lanjutkan.',
+  ],
+  'meet.present.bad': [
+    'Gambarnya bagus. Tapi kami sudah dengar soal nama Anda.',
+    'Rencana gampang digambar. Apa Anda akan menepati janji?',
+  ],
+  'meet.fund': [
+    'Untuk musholla dan selokan? Murah hati sekali. Warga akan ingat.',
+    'Alhamdulillah. Seluruh kampung akan merasakan manfaatnya.',
+  ],
+  'meet.yes': ['Saya setuju. Saya tanda tangan.', 'Cocok buat saya.', 'Baik, saya terima.', 'Deal. Istri saya pasti senang.'],
+  'meet.spokesYes': [
+    'Menurut saya tawarannya adil, dan saya tanda tangan. Bapak-Ibu, silakan dipertimbangkan.',
+    'Sebagai ketua RT saya terima. Saya tidak memaksa siapa pun, tapi menurut saya ini adil.',
+  ],
+  'meet.maybe': ['Sedikit lagi. Jadikan {price}, saya tanda tangan.', 'Kalau {price}, saya ikut.', 'Hampir. {price}, lalu kita salaman.'],
+  'meet.no': ['Tidak dengan harga segitu.', 'Maaf, tidak. Terlalu rendah buat saya.', 'Saya lewat.'],
+  'meet.insult': ['Ini penghinaan untuk kita semua.', 'Anda kira kami bodoh?', 'Memalukan. Saya akan cerita ke semua orang.'],
+  'meet.tired': ['Saya kira cukup untuk hari ini. Datang lagi kalau Anda serius.', 'Sudah. Kami pulang.'],
+  'meet.signed': ['Kalau begitu sudah beres. Semoga membawa berkah untuk semua.', 'Baik. Ayo urus surat-suratnya cepat.'],
+  'player.present': ['Anda membentangkan gambar rencana dan menjelaskan proyeknya.'],
+  'player.listenAll': ['Anda bertanya kepada semua orang apa yang penting bagi mereka.'],
+  'player.fund': ['Anda menawarkan sumbangan untuk kas kampung ({cost}).'],
+  'player.offerAll': ['Anda menawar semua orang {pct}% dari nilai properti mereka.'],
+  'player.acceptAsks': ['Anda menerima harga yang diminta {n} orang.'],
+  'player.sign': ['Anda tanda tangan dengan {n} pemilik dan membayar {cost}.'],
+  'system.meeting': ['Musyawarah dengan {n} pemilik'],
+  'system.meetingPersonal': ['Musyawarah bersama ({n} pemilik)'],
+  'system.absent': ['Tidak hadir: {names}'],
+  'system.meetingFailed': ['Yang datang terlalu sedikit. Musyawarah batal.'],
+  'system.moreSpoke': ['…dan {n} orang lain ikut bicara.'],
+  'system.tally': ['Setuju: {yes} · Minta lebih: {maybe} · Menolak: {no}'],
+  'system.lastChance': ['Warga mulai gelisah. Tanda tangani dengan yang setuju, atau pamit.'],
+  'system.signed': ['{n} pemilik tanda tangan. Dibayar {cost}.'],
+
+  // ---------- pesan di antara kunjungan ----------
+  'msg.reconsider': [
+    'Assalamualaikum. Soal tawaran Bapak waktu itu... keadaan di rumah sedang sulit. Apa masih berlaku? Silakan mampir.',
+    'Selamat malam. Saya sudah pikir-pikir. Mungkin kita bisa bicara lagi soal rumah. Datang kapan sempat.',
+  ],
+  'msg.lastOne': [
+    'Hampir semua tetangga sudah jual. Sepi sekali di sini. Ayo kita bicara.',
+    'Dengan semua pembangunan ini, jalan ini bukan rumah lagi. Mampirlah, saya siap berunding.',
+  ],
+  'msg.curious': [
+    'Halo, saya tinggal di sebelah tanah yang Anda beli. Kalau cari lagi, mungkin kita bisa bicara?',
+    'Selamat siang. Tetangga saya bilang Anda adil padanya. Saya mungkin juga mau jual.',
+  ],
+  'msg.angry': ['Jangan kira saya lupa bagaimana Anda menghina saya.', 'Semua orang di sini tahu tawaran Anda ke saya. Memalukan.'],
+  'msg.promise.apartment': [
+    'Permisi, kapan apartemen yang dijanjikan siap? Kami masih ngontrak.',
+    'Sudah lama sekali. Anda janji satu unit untuk kami. Lupa?',
+  ],
+  'msg.promise.shop': [
+    'Kapan saya bisa buka di kios yang dijanjikan? Pelanggan terus bertanya.',
+    'Tabungan saya menipis. Mana unit toko yang Anda janjikan?',
+  ],
   'system.visit': ['Kunjungan {n}'],
   'system.sold': ['Dijual kepada Anda seharga {price}.'],
 };
