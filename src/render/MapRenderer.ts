@@ -16,14 +16,24 @@ export class MapRenderer {
   /** For later milestones: plot highlights, selection, build previews. */
   readonly highlights = new Container();
 
+  /** Player changes: cleared lots and new roads (below buildings), new buildings and previews (above trees). */
+  readonly devGround = new Container();
+  readonly devTop = new Container();
+
   private layers: Graphics[] = [];
+  private roadsSlot = new Container();
+  private buildingsSlot = new Container();
+  private map: MapData | null = null;
 
   constructor() {
     this.world.sortableChildren = false;
   }
 
   setMap(map: MapData) {
+    this.map = map;
     for (const l of this.layers) l.destroy();
+    this.roadsSlot.removeChildren().forEach((c) => c.destroy());
+    this.buildingsSlot.removeChildren().forEach((c) => c.destroy());
     this.layers = [];
     this.world.removeChildren();
 
@@ -38,14 +48,26 @@ export class MapRenderer {
     add(this.drawAreas(map.greens, (k) => GREEN_COLORS[k] ?? GREEN_COLORS.grass, 1, true));
     this.world.addChild(this.overlayBelow);
     add(this.drawWater(map));
-    add(this.drawRoads(map.roads));
-    const [shadows, roofs] = this.drawBuildings(map);
-    add(shadows);
-    add(roofs);
+    this.world.addChild(this.roadsSlot);
+    this.world.addChild(this.devGround);
+    this.world.addChild(this.buildingsSlot);
+    this.refresh(new Set(), new Set());
     add(this.drawTrees(map.trees));
+    this.world.addChild(this.devTop);
     add(this.drawOutOfBounds(map));
     this.world.addChild(this.highlights);
     this.world.addChild(this.overlayAbove);
+  }
+
+  /** Redraws original roads and buildings, leaving out removed roads and demolished buildings. */
+  refresh(hiddenBuildings: Set<string>, hiddenRoads: Set<string>) {
+    const map = this.map;
+    if (!map) return;
+    this.roadsSlot.removeChildren().forEach((c) => c.destroy());
+    this.buildingsSlot.removeChildren().forEach((c) => c.destroy());
+    this.roadsSlot.addChild(this.drawRoads(map.roads.filter((r) => !hiddenRoads.has(r.id))));
+    const [shadows, roofs] = this.drawBuildings({ ...map, buildings: map.buildings.filter((b) => !hiddenBuildings.has(b.id)) });
+    this.buildingsSlot.addChild(shadows, roofs);
   }
 
   private drawGround(map: MapData): Graphics {

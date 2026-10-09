@@ -240,3 +240,28 @@ dl.neg-summary { margin-top: 12px !important; font-size: 12px; }
 .toast.out { opacity: 0; transform: translateY(-6px); }
 @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
 @media (max-width: 1100px) { #topbar .brand, #topbar label:first-of-type { display: none; } }
+
+/* ---------- milestone 4: build palette, tool hints, construction ---------- */
+#palette {
+  position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); max-width: calc(100% - 360px);
+  background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 8px;
+  display: flex; flex-direction: column; gap: 6px; box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35); z-index: 3;
+}
+#palette[hidden] { display: none; }
+#palette .cards { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+#palette .card {
+  flex: none; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-width: 112px;
+  padding: 6px 9px; text-align: left; border-radius: 8px;
+}
+#palette .card .icon { font-size: 20px; line-height: 1.1; }
+#palette .card b { font-size: 12px; font-weight: 600; }
+#palette .card small { font-size: 11px; color: var(--muted); }
+#palette .card.active small { color: #3b3020; }
+#palette .card small.bad { color: var(--danger); }
+#palette .toolhint { font-size: 12px; color: var(--muted); text-align: center; }
+#tooltip .bad { color: #f3a49b; }
+.progress { height: 6px; background: #2c323d; border-radius: 3px; overflow: hidden; margin: 4px 0 10px; }
+.progress i { display: block; height: 100%; background: #4caf7d; }
+button.wide.danger { margin-top: 10px; }
+#statusbar { z-index: 2; }
+@media (max-width: 1200px) { #palette { max-width: calc(100% - 24px); bottom: 54px; } }

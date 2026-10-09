@@ -1,7 +1,7 @@
 import { Container, Graphics } from 'pixi.js';
 import type { World } from '../game/World';
 import type { Plot, PlotStatus } from '../game/types';
-import type { FlatPoints } from '../shared/mapTypes';
+import { RasterOverlay, rgba } from './RasterOverlay';
 
 export type Lens = 'normal' | 'plots' | 'value';
 
@@ -32,10 +32,10 @@ function lerpColor(a: number, b: number, t: number): number {
   return m(16) | m(8) | m(0);
 }
 
-/** Draws lenses (status / value), hover and selection highlights on top of the map. */
+/** Draws lenses (status / value) and parcel outlines for hover and selection. */
 export class PlotLayer {
   readonly container = new Container();
-  private lensG = new Graphics();
+  private raster: RasterOverlay | null = null;
   private relatedG = new Graphics();
   private hoverG = new Graphics();
   private selectG = new Graphics();
@@ -44,14 +44,21 @@ export class PlotLayer {
   private hovered: Plot | null = null;
   private selected: Plot | null = null;
   private lastZoom = 0;
+  private outlines = new Map<string, number[]>();
 
   constructor() {
-    this.container.addChild(this.lensG, this.relatedG, this.hoverG, this.selectG);
+    this.container.addChild(this.relatedG, this.hoverG, this.selectG);
   }
 
   setWorld(w: World) {
     this.world = w;
     this.hovered = this.selected = null;
+    this.outlines.clear();
+    this.raster?.destroy();
+    const g = w.grid;
+    this.raster = new RasterOverlay(g.w, g.h, g.minX, g.minY);
+    this.raster.sprite.visible = false;
+    this.container.addChildAt(this.raster.sprite, 0);
     this.redrawLens();
     this.redrawHighlights();
   }
@@ -81,46 +88,49 @@ export class PlotLayer {
   }
 
   redrawLens() {
-    const g = this.lensG;
-    g.clear();
-    const w = this.world;
-    if (!w || this.lens === 'normal') return;
-
+    const w = this.world, r = this.raster;
+    if (!w || !r) return;
+    r.sprite.visible = this.lens !== 'normal';
+    if (this.lens === 'normal') return;
+    const P = w.parcels, gw = w.grid.w, n = P.length;
+    // one fill colour and one edge colour per plot
+    const fill = new Uint32Array(w.plots.length), edge = new Uint32Array(w.plots.length);
     if (this.lens === 'value') {
       const [lo, hi] = w.valueRange;
-      const groups = new Map<number, FlatPoints[]>();
       for (const p of w.plots) {
-        const t = (p.landValue / p.area - lo) / (hi - lo || 1);
-        const c = valueColor(Math.round(t * 20) / 20); // quantise so we batch into ~21 fills
-        (groups.get(c) ?? groups.set(c, []).get(c)!).push(p.poly);
+        const c = valueColor((p.landValue / p.area - lo) / (hi - lo || 1));
+        fill[p.index] = rgba(c, 0.6);
+        edge[p.index] = rgba(c, 0.95);
       }
-      for (const [c, polys] of groups) {
-        for (const poly of polys) g.poly(poly);
-        g.fill({ color: c, alpha: 0.62 });
+    } else {
+      for (const p of w.plots) {
+        const s = w.statusOf(p.id);
+        const base = s !== 'not_approached' ? STATUS_COLORS[s] : p.kind === 'land' ? LAND_COLORS[p.category] ?? 0x888888 : 0xffffff;
+        fill[p.index] = rgba(base, s !== 'not_approached' ? 0.38 : p.kind === 'land' ? 0.3 : 0);
+        edge[p.index] = rgba(s !== 'not_approached' ? STATUS_COLORS[s] : 0xffffff, s !== 'not_approached' ? 1 : 0.55);
       }
-      return;
     }
+    r.update((i) => {
+      const k = P[i];
+      if (k < 0) return 0;
+      const x = i % gw;
+      const isEdge = (x + 1 < gw && P[i + 1] !== k) || (i + gw < n && P[i + gw] !== k) || (x > 0 && P[i - 1] !== k) || (i >= gw && P[i - gw] !== k);
+      return isEdge ? edge[k] : fill[k];
+    });
+  }
 
-    // plots lens: tint land parcels, outline every plot coloured by status
-    const landGroups = new Map<string, Plot[]>();
-    for (const p of w.plots) if (p.kind === 'land') (landGroups.get(p.category) ?? landGroups.set(p.category, []).get(p.category)!).push(p);
-    for (const [cat, list] of landGroups) {
-      for (const p of list) g.poly(p.poly);
-      g.fill({ color: LAND_COLORS[cat] ?? 0x888888, alpha: 0.3 });
+  private outlineOf(p: Plot): number[] {
+    let o = this.outlines.get(p.id);
+    if (!o) {
+      o = this.world!.outline(p);
+      this.outlines.set(p.id, o);
     }
-    const byStatus = new Map<PlotStatus, Plot[]>();
-    for (const p of w.plots) {
-      const s = w.statusOf(p.id);
-      (byStatus.get(s) ?? byStatus.set(s, []).get(s)!).push(p);
-    }
-    for (const [s, list] of byStatus) {
-      if (s !== 'not_approached') {
-        for (const p of list) g.poly(p.poly);
-        g.fill({ color: STATUS_COLORS[s], alpha: 0.35 });
-      }
-      for (const p of list) g.poly(p.poly);
-      g.stroke({ width: s === 'not_approached' ? 0.35 : 0.8, color: STATUS_COLORS[s], alpha: s === 'not_approached' ? 0.55 : 0.95 });
-    }
+    return o;
+  }
+
+  private segs(g: Graphics, p: Plot) {
+    const s = this.outlineOf(p);
+    for (let i = 0; i < s.length; i += 4) g.moveTo(s[i], s[i + 1]).lineTo(s[i + 2], s[i + 3]);
   }
 
   private redrawHighlights() {
@@ -134,20 +144,21 @@ export class PlotLayer {
     const sel = this.selected;
     if (sel) {
       const owner = w.ownerOf(sel);
-      // the owner's other plots (dashed feel via thinner outline) and direct neighbours
-      if (owner.kind !== 'state') {
-        for (const id of owner.plotIds) if (id !== sel.id) this.relatedG.poly(w.plot(id)!.poly);
-        this.relatedG.fill({ color: 0xe0a458, alpha: 0.25 }).stroke({ width: 2 * px, color: 0xe0a458, alpha: 0.9 });
+      if (owner.kind !== 'state' && owner.plotIds.length > 1) {
+        for (const id of owner.plotIds) if (id !== sel.id) this.segs(this.relatedG, w.plot(id)!);
+        this.relatedG.stroke({ width: 2 * px, color: 0xe0a458, alpha: 0.95 });
       }
-      for (const id of sel.neighbors) this.relatedG.poly(w.plot(id)!.poly);
+      for (const id of sel.neighbors) this.segs(this.relatedG, w.plot(id)!);
       this.relatedG.stroke({ width: 1.5 * px, color: 0xffffff, alpha: 0.7 });
-      this.selectG.poly(sel.poly).fill({ color: 0xe0a458, alpha: 0.18 })
-        .stroke({ width: 5 * px, color: 0x1b1f26, alpha: 0.6 })
-        .poly(sel.poly).stroke({ width: 2.5 * px, color: 0xffd27f, alpha: 1 });
+      this.segs(this.selectG, sel);
+      this.selectG.stroke({ width: 5 * px, color: 0x1b1f26, alpha: 0.6 });
+      this.segs(this.selectG, sel);
+      this.selectG.stroke({ width: 2.5 * px, color: 0xffd27f, alpha: 1 });
     }
     const h = this.hovered;
     if (h && h !== sel) {
-      this.hoverG.poly(h.poly).fill({ color: 0xffffff, alpha: 0.12 }).stroke({ width: 2 * px, color: 0xffffff, alpha: 0.9 });
+      this.segs(this.hoverG, h);
+      this.hoverG.stroke({ width: 2 * px, color: 0xffffff, alpha: 0.9 });
     }
   }
 }

@@ -1,14 +1,15 @@
 import type { FlatPoints, MapBuilding, MapData, RoadKind } from '../shared/mapTypes';
-import { bboxOf, centroid, distToSegment, offsetPolygon, pointInPolygon, polygonArea, polygonDistance } from '../shared/geometry';
+import { bboxOf, centroid, distToSegment, offsetPolygon, pointInPolygon, polygonArea } from '../shared/geometry';
 import { Rng, hashString } from '../util/random';
 import { SpatialGrid } from './spatial';
+import { BUILDING, LandGrid, ROAD, WATER } from './LandGrid';
 import type { BuildingCategory, LandCategory, Plot, RoadAccess } from './types';
 import type { Region } from './regional';
 
 export const PLOT_BUFFER = 2; // meters of yard around each footprint
 export const LAND_CELL = 20; // meters, size of empty-land parcels
 
-const CAR_ROADS = new Set<RoadKind>(['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'residential',
+export const CAR_ROADS = new Set<RoadKind>(['motorway', 'trunk', 'primary', 'secondary', 'tertiary', 'residential',
   'unclassified', 'living_street', 'service', 'track']);
 const MAIN_ROADS = new Set<RoadKind>(['motorway', 'trunk', 'primary', 'secondary']);
 const LOCATION_FACTOR: Partial<Record<RoadKind, number>> = {
@@ -43,7 +44,10 @@ interface RoadSeg { ax: number; ay: number; bx: number; by: number; half: number
 
 export interface PlotBuildResult {
   plots: Plot[];
-  grid: SpatialGrid<Plot>;
+  /** Roads, water and building flags on a 1 m raster. */
+  grid: LandGrid;
+  /** Plot index for every 1 m cell (-1 = road / water). */
+  parcels: Int32Array;
 }
 
 /** Builds plots from buildings + empty land cells. Owner ids are filled in later. */
@@ -54,13 +58,6 @@ export function buildPlots(map: MapData, region: Region, seed: number): PlotBuil
     for (let i = 0; i < r.line.length - 2; i += 2) {
       const s: RoadSeg = { ax: r.line[i], ay: r.line[i + 1], bx: r.line[i + 2], by: r.line[i + 3], half: r.width / 2, kind: r.kind, name: r.name };
       roadGrid.insert(s, Math.min(s.ax, s.bx) - s.half, Math.min(s.ay, s.by) - s.half, Math.max(s.ax, s.bx) + s.half, Math.max(s.ay, s.by) + s.half);
-    }
-  }
-  const waterSegs = new SpatialGrid<{ ax: number; ay: number; bx: number; by: number; half: number }>(40);
-  for (const w of map.waterways) {
-    for (let i = 0; i < w.line.length - 2; i += 2) {
-      const s = { ax: w.line[i], ay: w.line[i + 1], bx: w.line[i + 2], by: w.line[i + 3], half: w.width / 2 + 2 };
-      waterSegs.insert(s, Math.min(s.ax, s.bx) - s.half, Math.min(s.ay, s.by) - s.half, Math.max(s.ax, s.bx) + s.half, Math.max(s.ay, s.by) + s.half);
     }
   }
 
@@ -97,76 +94,80 @@ export function buildPlots(map: MapData, region: Region, seed: number): PlotBuil
   };
 
   const plots: Plot[] = [];
-  const grid = new SpatialGrid<Plot>(25);
   const stepRound = (v: number) => Math.max(region.priceStep, Math.round(v / region.priceStep) * region.priceStep);
+  const { minX, minY, maxX, maxY } = map.bounds;
 
-  // ----- building plots -----
+  // ----- 1. raster of roads, water and buildings -----
+  const grid = new LandGrid(minX, minY, maxX, maxY);
+  for (const w of map.water) {
+    grid.setPolygon(w.poly, WATER, true);
+    for (const h of w.holes ?? []) grid.setPolygon(h, WATER, false);
+  }
+  for (const w of map.waterways) grid.forLine(w.line, w.width / 2, (i) => (grid.flags[i] |= WATER));
+  for (const r of map.roads) {
+    if (r.kind === 'rail') grid.forLine(r.line, r.width / 2, (i) => (grid.flags[i] |= WATER)); // rails block like water
+    else grid.addRoad(r.line, r.width, CAR_ROADS.has(r.kind), 1);
+  }
+  for (const b of map.buildings) grid.setPolygon(b.poly, BUILDING, true);
+  const N = grid.w * grid.h;
+  const parcels = new Int32Array(N).fill(-1);
+  const blocked = (i: number) => (grid.flags[i] & (ROAD | WATER)) !== 0;
+
+  // ----- 2. building plots, seeded with their footprints -----
   for (const b of map.buildings) {
     const rng = new Rng(seed ^ hashString(b.id));
     const category = categorize(b);
     const poly = offsetPolygon(b.poly, PLOT_BUFFER).map((v) => Math.round(v * 10) / 10);
     const [cx, cy] = centroid(b.poly);
     const footprintArea = polygonArea(b.poly);
-    const area = polygonArea(poly);
     const [fmin, fmax] = DEFAULT_FLOORS[category];
     const floors = b.levels ?? (category === 'house' ? (rng.chance(0.22) ? 2 : 1) : rng.int(fmin, fmax));
-    const loc = locationFactor(poly);
-    const commercialBonus = category === 'shophouse' || category === 'shop' ? 1.12 : 1;
-    const condition = rng.range(0.35, 0.9);
-    const landValue = area * region.landPerM2 * loc.factor * commercialBonus;
-    const buildingValue = footprintArea * floors * region.buildPerM2 * condition * (category === 'outbuilding' ? 0.3 : 1);
-    const plot: Plot = {
-      id: `p_${b.id}`,
-      kind: 'building',
-      category,
-      buildingId: b.id,
-      name: b.name,
-      poly,
-      footprint: b.poly,
-      cx, cy,
-      area: Math.round(area),
-      footprintArea: Math.round(footprintArea),
-      floors,
-      floorArea: Math.round(footprintArea * floors),
-      road: loc.road,
-      access: loc.access,
-      mainRoad: loc.main,
-      landValue: stepRound(landValue),
-      buildingValue: stepRound(buildingValue),
-      value: stepRound(landValue + buildingValue),
-      ownerId: '',
-      neighbors: [],
-    };
-    plots.push(plot);
-    const bb = bboxOf(poly);
-    grid.insert(plot, bb.minX, bb.minY, bb.maxX, bb.maxY);
+    const index = plots.length;
+    plots.push({
+      id: `p_${b.id}`, index, kind: 'building', category, buildingId: b.id, name: b.name, poly, footprint: b.poly,
+      cx, cy, area: 0, footprintArea: Math.round(footprintArea), floors, floorArea: Math.round(footprintArea * floors),
+      road: null, access: null, mainRoad: false, landValue: 0, buildingValue: 0, value: 0, ownerId: '', neighbors: [], cellBox: [0, 0, 0, 0],
+    });
+    grid.forPolygon(b.poly, (i) => { if (parcels[i] < 0) parcels[i] = index; });
   }
 
-  // ----- empty land cells -----
-  const { minX, minY, maxX, maxY } = map.bounds;
+  // ----- 3. grow parcels outward (nearest building wins), at most 10 m -----
+  const dist = new Uint16Array(N);
+  let queue = new Int32Array(N);
+  let qh = 0, qt = 0;
+  for (let i = 0; i < N; i++) if (parcels[i] >= 0) queue[qt++] = i;
+  const grow = (limit: number) => {
+    while (qh < qt) {
+      const i = queue[qh++];
+      const d = dist[i] + 1;
+      if (d > limit) continue;
+      const x = i % grid.w;
+      const nbs = [x > 0 ? i - 1 : -1, x < grid.w - 1 ? i + 1 : -1, i - grid.w, i + grid.w];
+      for (const j of nbs) {
+        if (j < 0 || j >= N || parcels[j] >= 0 || blocked(j)) continue;
+        parcels[j] = parcels[i];
+        dist[j] = d;
+        queue[qt++] = j;
+      }
+    }
+  };
+  grow(10);
+
+  // ----- 4. leftover open land in 20 m squares: state land, parks, fields, cemeteries -----
   const greensBy = (x: number, y: number): string | null => {
     let found: string | null = null;
     for (const g of map.greens) if (pointInPolygon(x, y, g.poly)) found = g.kind; // later (smaller) areas win
     return found;
   };
-  const inWater = (x: number, y: number) =>
-    map.water.some((w) => pointInPolygon(x, y, w.poly) && !(w.holes ?? []).some((h) => pointInPolygon(x, y, h))) ||
-    [...waterSegs.query(x, y, x, y)].some((s) => distToSegment(x, y, s.ax, s.ay, s.bx, s.by) < s.half);
-  const onRoad = (x: number, y: number) =>
-    roadGrid.query(x - 1, y - 1, x + 1, y + 1).some((s) => distToSegment(x, y, s.ax, s.ay, s.bx, s.by) < s.half + 1.2);
-  const inPlot = (x: number, y: number) => grid.query(x, y, x, y).some((p) => pointInPolygon(x, y, p.poly));
-
   const S = LAND_CELL;
-  const N = 4; // samples per side
-  for (let x0 = minX; x0 + S <= maxX + 0.01; x0 += S) {
-    for (let y0 = minY; y0 + S <= maxY + 0.01; y0 += S) {
-      let free = 0;
-      for (let i = 0; i < N; i++)
-        for (let j = 0; j < N; j++) {
-          const x = x0 + ((i + 0.5) / N) * S, y = y0 + ((j + 0.5) / N) * S;
-          if (!inPlot(x, y) && !onRoad(x, y) && !inWater(x, y)) free++;
-        }
-      if (free < N * N - 2) continue;
+  for (let y0 = minY; y0 + S <= maxY + 0.01; y0 += S) {
+    for (let x0 = minX; x0 + S <= maxX + 0.01; x0 += S) {
+      const cells: number[] = [];
+      for (let yy = 0; yy < S; yy++) for (let xx = 0; xx < S; xx++) {
+        const i = grid.index(x0 + xx + 0.5, y0 + yy + 0.5);
+        if (i >= 0 && parcels[i] < 0 && !blocked(i)) cells.push(i);
+      }
+      if (cells.length < S * S * 0.5) continue;
       const cx = x0 + S / 2, cy = y0 + S / 2;
       const g = greensBy(cx, cy);
       const category: LandCategory =
@@ -174,45 +175,79 @@ export function buildPlots(map: MapData, region: Region, seed: number): PlotBuil
           : g === 'cemetery' ? 'cemetery'
             : g === 'park' || g === 'garden' || g === 'pitch' ? 'park'
               : 'state_land';
-      const poly = [x0, y0, x0 + S, y0, x0 + S, y0 + S, x0, y0 + S].map((v) => Math.round(v * 10) / 10);
-      const loc = locationFactor(poly);
-      const mult = category === 'field' ? 0.35 : category === 'park' ? 0.6 : category === 'cemetery' ? 0.4 : 0.85;
-      const landValue = stepRound(S * S * region.landPerM2 * loc.factor * mult);
       const ix = Math.round((x0 - minX) / S), iy = Math.round((y0 - minY) / S);
-      const plot: Plot = {
-        id: `c_${ix}_${iy}`,
-        kind: 'land',
-        category,
-        poly,
-        cx, cy,
-        area: S * S,
-        footprintArea: 0,
-        floors: 0,
-        floorArea: 0,
-        road: loc.road,
-        access: loc.access,
-        mainRoad: loc.main,
-        landValue,
-        buildingValue: 0,
-        value: landValue,
-        ownerId: '',
-        neighbors: [],
-      };
-      plots.push(plot);
-      grid.insert(plot, x0, y0, x0 + S, y0 + S);
+      const index = plots.length;
+      plots.push({
+        id: `c_${ix}_${iy}`, index, kind: 'land', category,
+        poly: [x0, y0, x0 + S, y0, x0 + S, y0 + S, x0, y0 + S].map((v) => Math.round(v * 10) / 10),
+        cx, cy, area: 0, footprintArea: 0, floors: 0, floorArea: 0, road: null, access: null, mainRoad: false,
+        landValue: 0, buildingValue: 0, value: 0, ownerId: '', neighbors: [], cellBox: [0, 0, 0, 0],
+      });
+      for (const i of cells) { parcels[i] = index; dist[i] = 0; queue[qt++] = i; }
     }
   }
 
-  // ----- neighbors -----
+  // ----- 5. fill every remaining open cell from its nearest parcel (no slivers of no-man's land) -----
+  qh = 0;
+  qt = 0;
+  queue = new Int32Array(N);
+  for (let i = 0; i < N; i++) if (parcels[i] >= 0) { queue[qt++] = i; dist[i] = 0; }
+  grow(1e4);
+
+  // ----- 6. areas, bounding boxes, neighbours from the raster -----
+  const counts = new Int32Array(plots.length);
+  const box = new Int32Array(plots.length * 4);
+  for (let k = 0; k < plots.length; k++) { box[k * 4] = grid.w; box[k * 4 + 1] = grid.h; box[k * 4 + 2] = -1; box[k * 4 + 3] = -1; }
+  const pairs = new Set<number>();
+  const P = plots.length;
+  for (let i = 0; i < N; i++) {
+    const p = parcels[i];
+    if (p < 0) continue;
+    counts[p]++;
+    const x = i % grid.w, y = (i / grid.w) | 0;
+    if (x < box[p * 4]) box[p * 4] = x;
+    if (y < box[p * 4 + 1]) box[p * 4 + 1] = y;
+    if (x > box[p * 4 + 2]) box[p * 4 + 2] = x;
+    if (y > box[p * 4 + 3]) box[p * 4 + 3] = y;
+    // neighbours: adjacent parcels, or across a narrow road/path (≤ 5 m)
+    for (const [step, maxD] of [[1, grid.w - 1 - x], [grid.w, grid.h - 1 - y]] as const) {
+      for (let d = 1; d <= Math.min(5, maxD); d++) {
+        const q = parcels[i + step * d];
+        if (q < 0 && blocked(i + step * d)) continue;
+        if (q >= 0 && q !== p) pairs.add(p < q ? p * P + q : q * P + p);
+        break;
+      }
+    }
+  }
+  for (const key of pairs) {
+    const a = Math.floor(key / P), b = key % P;
+    plots[a].neighbors.push(plots[b].id);
+    plots[b].neighbors.push(plots[a].id);
+  }
+
+  // ----- 7. values -----
   for (const p of plots) {
-    const bb = bboxOf(p.poly);
-    const set = new Set<string>();
-    for (const q of grid.queryUnique(bb.minX - 2, bb.minY - 2, bb.maxX + 2, bb.maxY + 2)) {
-      if (q === p || set.has(q.id)) continue;
-      if (polygonDistance(p.poly, q.poly) < 1.5) set.add(q.id);
+    const k = p.index;
+    p.area = counts[k];
+    p.cellBox = [box[k * 4], box[k * 4 + 1], box[k * 4 + 2], box[k * 4 + 3]];
+    const loc = locationFactor(p.poly);
+    p.road = loc.road;
+    p.access = loc.access;
+    p.mainRoad = loc.main;
+    if (p.kind === 'building') {
+      const rng = new Rng(seed ^ hashString(`${p.buildingId}|cond`));
+      const commercialBonus = p.category === 'shophouse' || p.category === 'shop' ? 1.12 : 1;
+      const condition = rng.range(0.35, 0.9);
+      const landValue = p.area * region.landPerM2 * loc.factor * commercialBonus;
+      const buildingValue = p.floorArea * region.buildPerM2 * condition * (p.category === 'outbuilding' ? 0.3 : 1);
+      p.landValue = stepRound(landValue);
+      p.buildingValue = stepRound(buildingValue);
+      p.value = stepRound(landValue + buildingValue);
+    } else {
+      const mult = p.category === 'field' ? 0.35 : p.category === 'park' ? 0.6 : p.category === 'cemetery' ? 0.4 : 0.85;
+      p.landValue = p.value = stepRound(p.area * region.landPerM2 * loc.factor * mult);
     }
-    p.neighbors = [...set];
   }
 
-  return { plots, grid };
+  return { plots, grid, parcels };
 }

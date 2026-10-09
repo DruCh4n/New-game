@@ -18,11 +18,13 @@ export interface RoadAccess {
 
 export interface Plot {
   id: string;
+  /** Position in World.plots; also the value stored in the parcel raster. */
+  index: number;
   kind: 'building' | 'land';
   category: PlotCategory;
   buildingId?: string;
   name?: string;
-  /** Plot outline (building footprint + buffer, or a land cell). */
+  /** Approximate outline (footprint + 2 m, or the 20 m square). The exact parcel lives in World.parcels. */
   poly: FlatPoints;
   footprint?: FlatPoints;
   cx: number;
@@ -41,6 +43,8 @@ export interface Plot {
   value: number;
   ownerId: string;
   neighbors: string[];
+  /** Raster bounding box of the parcel: [x0, y0, x1, y1] in cell coordinates. */
+  cellBox: [number, number, number, number];
 }
 
 export type OwnerKind = 'person' | 'company' | 'institution' | 'state';

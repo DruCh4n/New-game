@@ -2,6 +2,10 @@ import type { World } from './World';
 import { START_YEAR } from './owners';
 import type { Owner, PlotStatus } from './types';
 import type { DealOption, LogEntry, Session } from './negotiation';
+import { Development, type Check } from './Development';
+import type { BuildingTypeId, RoadTypeId } from './catalog';
+import type { FlatPoints } from '../shared/mapTypes';
+import type { Plot } from './types';
 
 export type Speed = 0 | 1 | 2 | 4;
 /** Real seconds per in-game day at 1× speed. */
@@ -39,7 +43,7 @@ export interface Toast {
   params?: Record<string, string | number>;
 }
 
-export type GameEvent = 'day' | 'money' | 'status' | 'session' | 'speed';
+export type GameEvent = 'day' | 'money' | 'status' | 'session' | 'speed' | 'dev';
 
 /** Mutable game state on top of the generated World. */
 export class Game {
@@ -51,6 +55,7 @@ export class Game {
   readonly records = new Map<string, OwnerRecord>();
   readonly soldOwners = new Set<string>();
   readonly obligations: Obligation[] = [];
+  readonly dev: Development;
   private acc = 0;
   private speedBeforeTalk: Speed = 1;
   private listeners = new Set<(e: GameEvent) => void>();
@@ -59,6 +64,38 @@ export class Game {
   constructor(readonly world: World) {
     const r = world.region;
     this.money = Math.round((r.landPerM2 * 6000) / r.priceStep) * r.priceStep;
+    this.dev = new Development(world, () => this.money);
+    this.dev.onChange = (_e, detail) => {
+      if (detail?.kind === 'building') this.toast({ kind: 'good', key: 'toast.built', params: { buildingId: detail.id } });
+      if (detail?.kind === 'demolition') this.toast({ kind: 'info', key: 'toast.demolished', params: { plotId: detail.id } });
+      if (detail?.kind === 'road') this.toast({ kind: 'info', key: 'toast.roadDone' });
+      this.emit('dev');
+    };
+  }
+
+  // ----- development (money handled here) -----
+  demolish(plot: Plot): Check {
+    const c = this.dev.demolitionCheck(plot, this.ownsPlot(plot.id));
+    if (!c.ok) return c;
+    this.addMoney(-c.cost);
+    this.dev.startDemolition(plot, c.days);
+    return c;
+  }
+
+  buildRoad(line: FlatPoints, type: RoadTypeId): Check {
+    const c = this.dev.roadCheck(line, type);
+    if (!c.ok) return c;
+    this.addMoney(-c.cost);
+    this.dev.buildRoad(line, type, c);
+    return c;
+  }
+
+  placeBuilding(type: BuildingTypeId, cx: number, cy: number, angle: number): Check {
+    const c = this.dev.buildingCheck(type, cx, cy, angle);
+    if (!c.ok) return c;
+    this.addMoney(-c.cost);
+    this.dev.placeBuilding(type, cx, cy, angle, c);
+    return c;
   }
 
   // ----- events -----
@@ -104,6 +141,7 @@ export class Game {
       else if (o.mood > 55) o.mood -= 0.5;
     }
     for (const r of this.records.values()) r.pressureDiscount = Math.max(0, r.pressureDiscount - 0.004);
+    this.dev.advanceDay();
     this.emit('day');
   }
 
@@ -122,6 +160,7 @@ export class Game {
       if (this.world.statusOf(id) === 'sold') continue;
       this.world.status.set(id, s);
     }
+    if (s === 'sold') this.dev.onPlotsSold(plotIds);
     this.emit('status');
   }
 

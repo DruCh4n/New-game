@@ -11,6 +11,10 @@ import { band, esc, formatDate, initials, money, ownerName, plotHeading, plotTit
 import type { Game, Speed, Toast } from '../game/Game';
 import { canVisit, type Session } from '../game/negotiation';
 import { renderNegotiation, type NegotiationActions } from './negotiationPanel';
+import { BUILDING_TYPES, ROAD_TYPES, buildingType, type BuildingTypeId, type RoadTypeId } from '../game/catalog';
+import type { NewBuilding } from '../game/Development';
+
+export type Tool = 'select' | 'demolish' | 'road' | 'build';
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T;
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
@@ -27,6 +31,12 @@ export interface HudCallbacks {
   clearSelection(): void;
   visit(plotId: string): void;
   setSpeed(s: Speed): void;
+  setTool(t: Tool): void;
+  setBuildType(b: BuildingTypeId): void;
+  setRoadType(r: RoadTypeId): void;
+  demolishPlot(plotId: string): void;
+  removeNewBuilding(id: string): void;
+  addMoney(): void;
   negotiation: NegotiationActions;
 }
 
@@ -43,6 +53,10 @@ export class Hud {
   private world: World | null = null;
   private game: Game | null = null;
   private session: Session | null = null;
+  tool: Tool = 'select';
+  buildType: BuildingTypeId = 'house';
+  roadType: RoadTypeId = 'street';
+  private selectedNew: NewBuilding | null = null;
   private selected: Plot | null = null;
   private tooltipPlot: Plot | null = null;
 
@@ -69,10 +83,63 @@ export class Hud {
 
   select(plot: Plot | null) {
     this.selected = plot;
+    this.selectedNew = null;
     if (plot || this.panel === 'talk') this.panel = 'info';
     this.session = null;
     this.renderSidePanel();
     this.renderToolbar();
+  }
+
+  selectNewBuilding(b: NewBuilding | null) {
+    this.selected = null;
+    this.selectedNew = b;
+    this.session = null;
+    this.panel = 'info';
+    this.renderSidePanel();
+  }
+
+  setTool(tool: Tool) {
+    this.tool = tool;
+    this.renderToolbar();
+    this.renderPalette();
+  }
+
+  /** Free-form tooltip (used by the building tools). */
+  showText(html: string | null, sx: number, sy: number) {
+    const el = $('#tooltip');
+    this.tooltipPlot = null;
+    if (!html) { el.hidden = true; return; }
+    el.innerHTML = html;
+    el.hidden = false;
+    const host = $('#stage').getBoundingClientRect();
+    el.style.left = `${Math.min(sx + 14, host.width - el.offsetWidth - 8)}px`;
+    el.style.top = `${sy + 18}px`;
+  }
+
+  renderPalette() {
+    const el = $('#palette');
+    const g = this.game;
+    const hint = `<div class="toolhint">${tk(`tool.hint.${this.tool}`)}</div>`;
+    if (!g || this.tool === 'select' || this.tool === 'demolish') {
+      el.innerHTML = this.tool === 'select' ? '' : hint;
+      el.hidden = this.tool === 'select';
+      return;
+    }
+    el.hidden = false;
+    if (this.tool === 'build') {
+      el.innerHTML = `<div class="cards">${BUILDING_TYPES.map((b) => {
+        const { cost, days } = g.dev.buildingCost(b.id);
+        return `<button class="card ${this.buildType === b.id ? 'active' : ''}" data-bt="${b.id}">
+          <span class="icon">${b.icon}</span><b>${tk(`bt.${b.id}`)}</b>
+          <small>${t('bt.size', { w: b.width, d: b.depth, floors: b.floors })}</small>
+          <small class="${cost > g.money ? 'bad' : ''}">${t('tool.cost', { cost: money(g.world, cost), days })}</small></button>`;
+      }).join('')}</div>${hint}`;
+      el.querySelectorAll<HTMLElement>('[data-bt]').forEach((b) => (b.onclick = () => this.cb.setBuildType(b.dataset.bt as BuildingTypeId)));
+    } else {
+      el.innerHTML = `<div class="cards">${ROAD_TYPES.map((r) => `<button class="card ${this.roadType === r.id ? 'active' : ''}" data-rt="${r.id}">
+          <b>${tk(`rt.${r.id}`)}</b><small>${t('rt.width', { w: r.width })}</small></button>`).join('')}</div>${hint}`;
+      el.querySelectorAll<HTMLElement>('[data-rt]').forEach((b) => (b.onclick = () => this.cb.setRoadType(b.dataset.rt as RoadTypeId)));
+    }
   }
 
   /** Switch the side panel to a conversation. */
@@ -109,6 +176,11 @@ export class Hud {
     const params: Record<string, string | number> = { ...toast.params };
     if (w && typeof params.ownerId === 'string') params.owner = ownerName(w.owner(params.ownerId)!);
     if (w && typeof params.price === 'number') params.price = money(w, params.price);
+    if (w && typeof params.cost === 'number') params.cost = money(w, params.cost);
+    if (this.game && typeof params.buildingId === 'string') {
+      const b = this.game.dev.buildings.find((x) => x.id === params.buildingId);
+      params.building = b ? tk(`bt.${b.type}`) : '';
+    }
     const el = document.createElement('div');
     el.className = `toast ${toast.kind}`;
     el.textContent = tk(toast.key, params);
@@ -190,13 +262,14 @@ export class Hud {
   }
 
   // ---------------------------------------------------------------- side panel
-  private renderSidePanel() {
+  private renderSidePanel(): void {
     const el = $('#sidepanel');
     el.classList.toggle('plot', this.panel === 'info' && !!this.selected);
     el.classList.toggle('talk', this.panel === 'talk');
     if (this.panel === 'overlay') return this.renderOverlayPanel(el);
     if (this.panel === 'talk' && this.session && this.game) return renderNegotiation(el, this.game, this.session, this.cb.negotiation);
     if (this.selected && this.world) return this.renderPlotPanel(el, this.selected, this.world);
+    if (this.selectedNew && this.game) return this.renderNewBuildingPanel(el, this.selectedNew, this.game);
     const m = this.map;
     if (!m) { el.innerHTML = ''; return; }
     const w = m.bounds.maxX - m.bounds.minX, h = m.bounds.maxY - m.bounds.minY;
@@ -215,14 +288,41 @@ export class Hud {
         <dt>${t('info.plots')}</dt><dd>${world.plots.length.toLocaleString()}</dd>
         <dt>${t('info.owners')}</dt><dd>${world.owners.length.toLocaleString()}</dd>
         <dt>${t('info.stateLand')}</dt><dd>${(stateArea / 10000).toFixed(1)} ha</dd>
-        <dt>${t('info.owned')}</dt><dd>${world.plots.filter((p) => world.statusOf(p.id) === 'sold').length}</dd>` : ''}
+        <dt>${t('info.owned')}</dt><dd>${world.plots.filter((p) => world.statusOf(p.id) === 'sold').length}</dd>
+        ${this.game ? `<dt>${t('info.ownedArea')}</dt><dd>${this.game.dev.ownedArea().toLocaleString()} m²</dd>` : ''}` : ''}
       </dl>
+      ${this.devMode ? `<button id="dev-money" class="wide">${t('dev.addMoney')}</button>` : ''}
       <label class="check dev"><input id="dev-toggle" type="checkbox" ${this.devMode ? 'checked' : ''}/> ${t('dev.toggle')}</label>
       <p class="hint">${t('help.controls')}</p>`;
     $<HTMLInputElement>('#dev-toggle').onchange = (e) => {
       this.devMode = (e.target as HTMLInputElement).checked;
       try { localStorage.setItem(DEV_KEY, this.devMode ? '1' : '0'); } catch { /* ignore */ }
+      this.renderSidePanel();
     };
+    document.getElementById('dev-money')?.addEventListener('click', () => this.cb.addMoney());
+  }
+
+  private renderNewBuildingPanel(el: HTMLElement, b: NewBuilding, g: Game): void {
+    const bt = buildingType(b.type);
+    if (!g.dev.buildings.includes(b)) { this.selectedNew = null; return this.renderSidePanel(); }
+    const pct = Math.round((1 - b.daysLeft / b.total) * 100);
+    el.innerHTML = `
+      <div class="panel-head">
+        <span class="pill" style="--c:${b.daysLeft ? '#f2c14e' : '#4caf7d'}">${b.daysLeft ? `${pct}%` : t('nb.done')}</span>
+        <button id="panel-close" class="icon" aria-label="${t('panel.close')}">✕</button>
+      </div>
+      <h2>${bt.icon} ${tk(`bt.${b.type}`)}</h2>
+      ${b.daysLeft ? `<div class="progress"><i style="width:${pct}%"></i></div>` : ''}
+      <dl>
+        <dt>${t('nb.status')}</dt><dd>${b.daysLeft ? t('nb.building', { pct, days: b.daysLeft }) : t('nb.done')}</dd>
+        <dt>${t('panel.building')}</dt><dd>${t('bt.size', { w: bt.width, d: bt.depth, floors: bt.floors })}</dd>
+        <dt>${t('nb.floorArea')}</dt><dd>${(bt.width * bt.depth * bt.floors).toLocaleString()} m²</dd>
+        <dt>${t('nb.cost')}</dt><dd>${money(g.world, b.cost)}</dd>
+      </dl>
+      <p class="hint">${t('nb.incomeSoon')}</p>
+      <button id="nb-remove" class="wide danger">${t('nb.remove')}</button>`;
+    $('#panel-close').onclick = () => this.cb.clearSelection();
+    $('#nb-remove').onclick = () => this.cb.removeNewBuilding(b.id);
   }
 
   private renderPlotPanel(el: HTMLElement, p: Plot, w: World) {
@@ -278,7 +378,9 @@ export class Hud {
       </div>
       <dl>
         <dt>${t('panel.plotArea')}</dt><dd>${p.area.toLocaleString()} m²</dd>
-        <dt>${t('panel.building')}</dt><dd>${p.kind === 'building' ? t('panel.buildingValue', { area: p.footprintArea, floors: p.floors }) : t('panel.noBuilding')}</dd>
+        <dt>${t('panel.building')}</dt><dd>${p.kind !== 'building' ? t('panel.noBuilding')
+          : this.game?.dev.buildingState(p) === 'demolished' ? t('panel.cleared')
+            : t('panel.buildingValue', { area: p.footprintArea, floors: p.floors })}</dd>
         <dt>${t('panel.road')}</dt><dd>${roadRow}</dd>
         ${p.mainRoad ? `<dt>${t('panel.mainRoad')}</dt><dd>✓</dd>` : ''}
       </dl>
@@ -298,6 +400,7 @@ export class Hud {
 
     $('#panel-close').onclick = () => this.cb.clearSelection();
     document.getElementById('panel-visit')?.addEventListener('click', () => this.cb.visit(p.id));
+    document.getElementById('panel-demolish')?.addEventListener('click', () => this.cb.demolishPlot(p.id));
     el.querySelectorAll<HTMLElement>('[data-plot]').forEach((b) => (b.onclick = () => this.cb.focusPlot(b.dataset.plot!)));
   }
 
@@ -308,7 +411,12 @@ export class Hud {
     const w = g.world;
     if (g.ownsPlot(p.id)) {
       const promised = g.obligations.filter((ob) => ob.ownerId === o.id).map((ob) => tk(`opt.${ob.kind}`));
-      return `<div class="owned">✓ ${t('panel.youOwn')}${promised.length ? `<small>${t('panel.promised', { list: promised.join(', ') })}</small>` : ''}</div>`;
+      const state = g.dev.buildingState(p);
+      const dc = g.dev.demolitionCheck(p, true);
+      const demolishing = g.dev.demolishing.get(p.buildingId ?? '');
+      return `<div class="owned">✓ ${t('panel.youOwn')}${promised.length ? `<small>${t('panel.promised', { list: promised.join(', ') })}</small>` : ''}</div>
+        ${state === 'standing' ? `<button id="panel-demolish" class="wide danger" ${dc.ok ? '' : 'disabled'}>⛏ ${t('panel.demolish', { cost: money(w, dc.cost), days: dc.days })}</button>` : ''}
+        ${demolishing ? `<p class="hint center">${t('panel.demolishing', { days: demolishing.daysLeft })}</p>` : ''}`;
     }
     const rec = g.records.get(o.id);
     const summary = rec && rec.visits ? `
@@ -392,18 +500,22 @@ export class Hud {
   // ---------------------------------------------------------------- toolbar
   private renderToolbar() {
     const el = $('#toolbar');
-    const future: [string, StringKey][] = [['⛏', 'tool.demolish'], ['🛣', 'tool.road'], ['🏗', 'tool.build']];
+    const tools: [Tool, string, StringKey, string][] = [
+      ['select', '🖱', 'tool.select', 'V'], ['demolish', '⛏', 'tool.demolish', 'X'], ['road', '🛣', 'tool.road', 'N'], ['build', '🏗', 'tool.build', 'B'],
+    ];
     const lenses: [Lens, StringKey, string][] = [['normal', 'lens.normal', '1'], ['plots', 'lens.plots', '2'], ['value', 'lens.value', '3']];
     el.innerHTML = `
-      <button id="tb-select" class="${this.panel !== 'overlay' ? 'active' : ''}">🖱 ${t('tool.select')}</button>
-      ${future.map(([icon, k]) => `<button disabled title="${t('tool.comingSoon')}">${icon} ${t(k)}</button>`).join('')}
+      <div class="segmented">${tools.map(([id, icon, k, key]) => `<button data-tool="${id}" class="${this.tool === id && this.panel !== 'overlay' ? 'active' : ''}" title="${t(k)} (${key})">${icon} ${t(k)}</button>`).join('')}</div>
       <span class="sep"></span>
       <span class="group-label">${t('tool.lens')}</span>
       <div class="segmented">${lenses.map(([l, k, key]) => `<button data-lens="${l}" class="${this.lens === l ? 'active' : ''}" title="${key}">${t(k)}</button>`).join('')}</div>
       <span class="sep"></span>
       <button id="tb-overlay" class="${this.panel === 'overlay' ? 'active' : ''}">🛰 ${t('tool.overlay')}</button>
       <button id="tb-reset">⌂ ${t('tool.resetView')}</button>`;
-    $('#tb-select').onclick = () => { if (this.panel === 'overlay') this.panel = this.session ? 'talk' : 'info'; this.overlay.adjusting = false; this.renderAll(); };
+    el.querySelectorAll<HTMLElement>('[data-tool]').forEach((b) => (b.onclick = () => {
+      if (this.panel === 'overlay') { this.panel = this.session ? 'talk' : 'info'; this.overlay.adjusting = false; this.renderAll(); }
+      this.cb.setTool(b.dataset.tool as Tool);
+    }));
     $('#tb-overlay').onclick = () => { this.panel = 'overlay'; this.renderAll(); };
     $('#tb-reset').onclick = () => this.cb.resetView();
     el.querySelectorAll<HTMLElement>('[data-lens]').forEach((b) => (b.onclick = () => this.cb.setLens(b.dataset.lens as Lens)));

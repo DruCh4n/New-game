@@ -1,10 +1,9 @@
 import type { MapData } from '../shared/mapTypes';
-import { pointInPolygon } from '../shared/geometry';
 import { hashString } from '../util/random';
 import { buildPlots } from './plots';
 import { generateOwners } from './owners';
 import { regionFor, type Region } from './regional';
-import type { SpatialGrid } from './spatial';
+import type { LandGrid } from './LandGrid';
 import type { Owner, Plot, PlotStatus } from './types';
 
 /**
@@ -18,7 +17,10 @@ export class World {
   readonly owners: Owner[];
   private plotById: Map<string, Plot>;
   private ownerById: Map<string, Owner>;
-  private grid: SpatialGrid<Plot>;
+  /** 1 m raster: roads, water, buildings (and later ownership). */
+  readonly grid: LandGrid;
+  /** Plot index per raster cell, -1 for roads and water. */
+  readonly parcels: Int32Array;
   readonly status = new Map<string, PlotStatus>();
   /** Range of value per m² (for the value lens). */
   readonly valueRange: [number, number];
@@ -26,9 +28,10 @@ export class World {
   constructor(readonly map: MapData, seed?: number) {
     this.region = regionFor(map.country);
     this.seed = seed ?? hashString(`${map.name}|${map.center.lat}|${map.center.lon}`);
-    const { plots, grid } = buildPlots(map, this.region, this.seed);
+    const { plots, grid, parcels } = buildPlots(map, this.region, this.seed);
     this.plots = plots;
     this.grid = grid;
+    this.parcels = parcels;
     this.owners = generateOwners(plots, map.country, this.seed);
     this.plotById = new Map(plots.map((p) => [p.id, p]));
     this.ownerById = new Map(this.owners.map((o) => [o.id, o]));
@@ -52,14 +55,70 @@ export class World {
     return this.status.get(plotId) ?? 'not_approached';
   }
 
-  /** Plot under a world point. Building footprints win over yard buffers of neighbours. */
+  /** Plot under a world point (exact, from the parcel raster). */
   plotAt(x: number, y: number): Plot | null {
-    const cands = this.grid.queryUnique(x, y, x, y);
-    let buffered: Plot | null = null;
-    for (const p of cands) {
-      if (p.footprint && pointInPolygon(x, y, p.footprint)) return p;
-      if (!buffered && pointInPolygon(x, y, p.poly)) buffered = p;
-    }
-    return buffered;
+    const i = this.grid.index(x, y);
+    if (i < 0) return null;
+    const k = this.parcels[i];
+    return k >= 0 ? this.plots[k] : null;
   }
+
+  /** Calls fn(cellIndex) for every raster cell of a plot. */
+  forEachCell(plot: Plot, fn: (i: number) => void) {
+    const [x0, y0, x1, y1] = plot.cellBox;
+    const w = this.grid.w;
+    for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+      const i = y * w + x;
+      if (this.parcels[i] === plot.index) fn(i);
+    }
+  }
+
+  /** Parcel outline as flat line segments [x0,y0,x1,y1, ...] in world meters. */
+  outline(plot: Plot): number[] {
+    const out: number[] = [];
+    const g = this.grid, w = g.w, k = plot.index, P = this.parcels;
+    const [x0, y0, x1, y1] = plot.cellBox;
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) {
+        if (P[y * w + x] !== k) continue;
+        const wx = g.minX + x, wy = g.minY + y;
+        if (y === 0 || P[(y - 1) * w + x] !== k) out.push(wx, wy, wx + 1, wy);
+        if (y === g.h - 1 || P[(y + 1) * w + x] !== k) out.push(wx, wy + 1, wx + 1, wy + 1);
+        if (x === 0 || P[y * w + x - 1] !== k) out.push(wx, wy, wx, wy + 1);
+        if (x === g.w - 1 || P[y * w + x + 1] !== k) out.push(wx + 1, wy, wx + 1, wy + 1);
+      }
+    }
+    return mergeSegments(out);
+  }
+}
+
+/** Joins collinear unit segments into longer ones so outlines draw fast. */
+function mergeSegments(seg: number[]): number[] {
+  const h = new Map<string, number[]>(), v = new Map<string, number[]>();
+  for (let i = 0; i < seg.length; i += 4) {
+    if (seg[i + 1] === seg[i + 3]) (h.get(`${seg[i + 1]}`) ?? h.set(`${seg[i + 1]}`, []).get(`${seg[i + 1]}`)!).push(seg[i]);
+    else (v.get(`${seg[i]}`) ?? v.set(`${seg[i]}`, []).get(`${seg[i]}`)!).push(seg[i + 1]);
+  }
+  const out: number[] = [];
+  for (const [k, xs] of h) {
+    const y = parseFloat(k);
+    xs.sort((a, b) => a - b);
+    let start = xs[0], end = xs[0] + 1;
+    for (let i = 1; i <= xs.length; i++) {
+      if (i < xs.length && xs[i] === end) { end++; continue; }
+      out.push(start, y, end, y);
+      if (i < xs.length) { start = xs[i]; end = xs[i] + 1; }
+    }
+  }
+  for (const [k, ys] of v) {
+    const x = parseFloat(k);
+    ys.sort((a, b) => a - b);
+    let start = ys[0], end = ys[0] + 1;
+    for (let i = 1; i <= ys.length; i++) {
+      if (i < ys.length && ys[i] === end) { end++; continue; }
+      out.push(x, start, x, end);
+      if (i < ys.length) { start = ys[i]; end = ys[i] + 1; }
+    }
+  }
+  return out;
 }

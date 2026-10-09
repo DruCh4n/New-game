@@ -3,9 +3,8 @@
 An offline, top-down city-redevelopment game. You play a property developer who buys plots from NPC
 owners in a real neighborhood (imported from OpenStreetMap), then demolishes, lays roads and builds.
 
-**Status: Milestone 3** — map (M1), plots and owners (M2), and negotiation: visit owners, listen to
-their stories, make offers with deal options, handle counter-offers, refusals and holdouts, and
-watch your reputation and the neighbourhood react.
+**Status: Milestone 4**: map (M1), plots and owners (M2), negotiation (M3), and redevelopment:
+demolish what you bought, draw roads and place buildings on land you fully own.
 
 ## Quick start
 
@@ -53,6 +52,26 @@ Click a plot → **Visit owner**. In the conversation:
   is poor). Public parks aren't for sale.
 
 Time pauses while you talk. Moods recover slowly as days pass.
+
+### Building
+
+| Tool | Key | What it does |
+| --- | --- | --- |
+| Select | `V` | Inspect plots and your new buildings |
+| Demolish | `X` | Demolish a building on land you own (costs money, takes days), remove your new roads or buildings, or remove an old gang/footpath once you own the land on both sides |
+| Road | `N` | Click points (snaps to existing roads and a 1 m grid), double-click or `Enter` to build. Gang 4 m, street 7 m, avenue 12 m. Only over your land or existing roads. |
+| Build | `B` | Pick a building in the palette; it aligns itself to the nearest road. `R` rotates 90°, `Q`/`E` 15°. |
+
+Placement rules: every square metre of the footprint must be land you own (not road, water or a
+standing building), larger buildings need a margin of your own land around them (shown as a thin
+outline), and the building must be within 4 m of a drivable road. Your land is highlighted in green
+while a tool is active. Cost is paid up front; construction takes in-game days (a house 45, an
+apartment tower 300). Tick developer mode for an "Add money" button when testing big projects.
+
+**Land registry.** Every square metre that isn't road or water belongs to exactly one plot: land
+between houses is split between the nearest buildings (up to 10 m), open land becomes 20 m
+state/park/field parcels, and the remaining gaps go to the nearest parcel. So buying neighbouring
+plots gives you one continuous piece of land.
 
 Tick **Developer mode** in the map info panel to see hidden owner values (minimum price, holdout
 flag, mood). Useful for testing; it's a spoiler in normal play.
@@ -110,7 +129,7 @@ in your browser (IndexedDB / localStorage) per map. Nothing is copied into the p
 | `npm run typecheck` | TypeScript only |
 | `npm run import-map -- …` | OSM importer (see above) |
 | `npm run sample-map` | Regenerate the synthetic sample map |
-| `npm test` | Importer, world generation and negotiation tests (incl. 600 random conversations) |
+| `npm test` | Importer, world generation, negotiation and development tests |
 
 ## Project plan
 
@@ -143,6 +162,9 @@ src/
     regional.ts          currency and price levels per country, money formatting
     Game.ts              mutable state: clock, money, reputation, negotiation records, promises
     negotiation.ts       the negotiation engine (pure logic, tested in Node)
+    LandGrid.ts          1 m raster: ownership, roads, water, buildings (placement rules)
+    Development.ts       demolition, roads, buildings, construction progress
+    catalog.ts           building and road types (size, floors, cost, build time)
 ```
 
 ### Data model
@@ -155,8 +177,8 @@ around the map center (x = east, y = south, matching screen space), stored as fl
 - `water[]`, `waterways[]`, `greens[]` (park, forest, paddy…), `landuse[]`, `trees`
 - `center`, `bbox`, `bounds`, `country`, `attribution`
 
-**How plots are made.** Each building footprint grows by a 2 m yard to form a plot. The remaining
-land is cut into 20 m cells: rice fields/farmland become farmer-owned plots (one farmer per 2×2
+**How plots are made.** On a 1 m raster, land is assigned to the nearest building (up to 10 m),
+then open land is cut into 20 m cells: rice fields/farmland become farmer-owned plots (one farmer per 2×2
 block), parks and other empty land belong to the city, cemeteries to a community trust. Plot value =
 land area × country price × location factor (main road ×1.7, street ×1.0, alley ×0.85, footpath only
 ×0.7) + floor area × build cost × condition.
