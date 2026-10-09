@@ -1,0 +1,29 @@
+{
+  "elements": [
+    { "type": "node", "id": 1, "lat": -6.2300, "lon": 106.8300, "tags": { "natural": "tree" } },
+    { "type": "way", "id": 10, "tags": { "building": "house", "building:levels": "2" },
+      "geometry": [ {"lat": -6.2301, "lon": 106.8301}, {"lat": -6.2301, "lon": 106.8302}, {"lat": -6.2302, "lon": 106.8302}, {"lat": -6.2302, "lon": 106.8301}, {"lat": -6.2301, "lon": 106.8301} ] },
+    { "type": "way", "id": 11, "tags": { "building": "yes", "amenity": "place_of_worship", "name": "Masjid Al-Ikhlas" },
+      "geometry": [ {"lat": -6.2295, "lon": 106.8295}, {"lat": -6.2295, "lon": 106.8297}, {"lat": -6.2297, "lon": 106.8297}, {"lat": -6.2297, "lon": 106.8295}, {"lat": -6.2295, "lon": 106.8295} ] },
+    { "type": "way", "id": 12, "tags": { "building": "house" },
+      "geometry": [ {"lat": -6.2500, "lon": 106.8500}, {"lat": -6.2500, "lon": 106.8501}, {"lat": -6.2501, "lon": 106.8501}, {"lat": -6.2500, "lon": 106.8500} ] },
+    { "type": "way", "id": 20, "tags": { "highway": "primary", "name": "Jalan Raya", "lanes": "4" },
+      "geometry": [ {"lat": -6.2280, "lon": 106.8280}, {"lat": -6.2300, "lon": 106.8300}, {"lat": -6.2320, "lon": 106.8320} ] },
+    { "type": "way", "id": 21, "tags": { "highway": "footway" },
+      "geometry": [ {"lat": -6.2290, "lon": 106.8290}, {"lat": -6.2291, "lon": 106.8291} ] },
+    { "type": "way", "id": 22, "tags": { "highway": "proposed" },
+      "geometry": [ {"lat": -6.2290, "lon": 106.8290}, {"lat": -6.2291, "lon": 106.8291} ] },
+    { "type": "way", "id": 30, "tags": { "waterway": "river", "name": "Kali Ciliwung" },
+      "geometry": [ {"lat": -6.2270, "lon": 106.8310}, {"lat": -6.2330, "lon": 106.8310} ] },
+    { "type": "way", "id": 40, "tags": { "leisure": "park" },
+      "geometry": [ {"lat": -6.2280, "lon": 106.8280}, {"lat": -6.2280, "lon": 106.8285}, {"lat": -6.2285, "lon": 106.8285}, {"lat": -6.2280, "lon": 106.8280} ] },
+    { "type": "way", "id": 41, "tags": { "landuse": "residential" },
+      "geometry": [ {"lat": -6.2280, "lon": 106.8280}, {"lat": -6.2280, "lon": 106.8320}, {"lat": -6.2320, "lon": 106.8320}, {"lat": -6.2280, "lon": 106.8280} ] },
+    { "type": "relation", "id": 50, "tags": { "type": "multipolygon", "natural": "water" },
+      "members": [
+        { "type": "way", "ref": 501, "role": "outer", "geometry": [ {"lat": -6.2310, "lon": 106.8280}, {"lat": -6.2310, "lon": 106.8290}, {"lat": -6.2318, "lon": 106.8290} ] },
+        { "type": "way", "ref": 502, "role": "outer", "geometry": [ {"lat": -6.2310, "lon": 106.8280}, {"lat": -6.2318, "lon": 106.8280}, {"lat": -6.2318, "lon": 106.8290} ] },
+        { "type": "way", "ref": 503, "role": "inner", "geometry": [ {"lat": -6.2312, "lon": 106.8283}, {"lat": -6.2312, "lon": 106.8285}, {"lat": -6.2314, "lon": 106.8285}, {"lat": -6.2312, "lon": 106.8283} ] }
+      ] }
+  ]
+}

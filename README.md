@@ -1,0 +1,137 @@
+# Kota Baru — City Redevelopment Game
+
+An offline, top-down city-redevelopment game. You play a property developer who buys plots from NPC
+owners in a real neighborhood (imported from OpenStreetMap), then demolishes, lays roads and builds.
+
+**Status: Milestone 1** — project setup, OSM import script, stylized map rendering with pan/zoom,
+optional satellite reference overlay.
+
+## Quick start
+
+Requires Node.js 18+ (20 or 22 recommended).
+
+```bash
+npm install
+npm run dev            # open http://localhost:5173
+```
+
+The repo ships with `maps/sample-kampung.json`, a **synthetic** 1 km² Indonesian kampung (not a real
+place) so you can play without importing anything. Regenerate it with `npm run sample-map`.
+
+### Controls
+
+| Action | Input |
+| --- | --- |
+| Pan | Drag (any mouse button), or WASD / arrow keys |
+| Zoom | Mouse wheel (zooms toward the cursor), or `+` / `-` |
+| Reset view | `Home` key or the **Reset view** button |
+
+## Importing your own neighborhood
+
+Run this **once while online**; it saves a processed file into `/maps` and the game stays offline after.
+
+1. Find the coordinates. Easiest: right-click a spot in Google Maps or openstreetmap.org and copy the
+   `lat, lon`. Or draw a box at <https://bboxfinder.com> / openstreetmap.org → *Export*.
+2. Run one of:
+
+```bash
+# A 1 km × 1 km square around a center point (recommended to start)
+npm run import-map -- --center -6.2297,106.8295 --size 1000 --name "Setiabudi"
+
+# An exact bounding box: south,west,north,east
+npm run import-map -- --bbox -6.234,106.825,-6.225,106.834 --name "Setiabudi"
+```
+
+3. Reload the game and choose the map in the **Map** dropdown (or use **Open map file…** to load any
+   processed `.json` from disk).
+
+Other options:
+
+| Option | Meaning |
+| --- | --- |
+| `--country XX` | ISO country code (used later for owner names). Auto-detected if omitted. |
+| `--save-raw` | Also keep the raw Overpass response in `maps/raw/` (git-ignored). |
+| `--input file.json` | Process a saved Overpass response instead of downloading. |
+| `--endpoint URL` | Use a specific Overpass server. |
+| `--print-query` | Just print the Overpass query and exit. |
+
+If the public Overpass servers are busy, the script retries on mirrors. As a fallback you can paste the
+query printed by `npm run import-map -- --center … --print-query` into <https://overpass-turbo.eu>,
+export the raw data as JSON, and run the importer with `--input that-file.json` plus the same bbox.
+
+Areas with no OSM building data simply show empty land (later this becomes state-owned land).
+Map data © OpenStreetMap contributors, ODbL. The attribution is shown in the game.
+
+### Satellite reference overlay (optional, personal use)
+
+Bottom toolbar → **Satellite overlay** → *Load image…*. Pick a screenshot of the same area. It is
+auto-fitted to the map; with *Adjust position* ticked you can drag to move it, wheel to scale and
+Shift+wheel to rotate. Opacity and draw-order are adjustable. The image and its alignment are stored
+in your browser (IndexedDB / localStorage) per map. Nothing is copied into the project.
+
+## Scripts
+
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Dev server with hot reload |
+| `npm run build` | Typecheck + production build into `dist/` (works from `file://`, ready for Tauri/Electron) |
+| `npm run typecheck` | TypeScript only |
+| `npm run import-map -- …` | OSM importer (see above) |
+| `npm run sample-map` | Regenerate the synthetic sample map |
+| `npm run test:import` | Offline test of the OSM processing using a fixture |
+
+## Project plan
+
+### Folder structure
+
+```
+maps/                    processed map JSON files (bundled into the game, loaded offline)
+scripts/
+  import-osm.ts          CLI: bbox → Overpass download → maps/<name>.json
+  lib/osm.ts             pure Overpass-JSON → MapData conversion (tested)
+  generate-sample.ts     synthetic sample kampung
+  test-import.ts         importer test, fixtures/ holds sample Overpass data
+src/
+  main.ts                boot: Pixi app, camera, map loading, game loop
+  shared/                code used by BOTH importer and game
+    mapTypes.ts          MapData format
+    projection.ts        lat/lon ↔ local meters (equirectangular)
+    geometry.ts          area, centroid, point-in-polygon, simplification
+  i18n/strings.ts        ALL user-facing text (en, id) — translate here
+  render/                PixiJS: MapRenderer, Camera, input controls, styles, overlay
+  map/mapStore.ts        lists/loads maps from /maps or a file
+  ui/hud.ts              DOM HUD: top bar, side panel, status bar, toolbar
+  util/                  seeded RNG, IndexedDB helper
+  (M2+) game/            plots, owners, negotiation, economy, building, save/load
+```
+
+### Data model
+
+**Static map (`MapData`, from the importer)** — never changes during play. Coordinates are meters
+around the map center (x = east, y = south, matching screen space), stored as flat arrays.
+
+- `buildings[]`: `id`, `type` (OSM building tag), `use` (amenity/shop), `levels`, `name`, `poly`
+- `roads[]`: `kind` (primary…path, rail), `width` m, `name`, `bridge`, `line`
+- `water[]`, `waterways[]`, `greens[]` (park, forest, paddy…), `landuse[]`, `trees`
+- `center`, `bbox`, `bounds`, `country`, `attribution`
+
+**Game state (from Milestone 2, saved as JSON)** — everything that changes, referencing map ids:
+
+- `Plot`: id, polygon (footprint + buffer, or empty state land), area, base value, road access,
+  neighbor plot ids, status (`not_approached | negotiating | sold | refused`), building state
+  (original / demolished / new building id)
+- `Owner`: id, plotIds, name, family size, years lived, attachment, greed, finances
+  (`needs_money | comfortable | wealthy`), holdout flag, hidden minimum price (+ drift), mood,
+  relationships `{ownerId: -100..100}`, story hooks for dialogue, negotiation log
+- `Player`: money, loans, reputation
+- `World`: date/clock, speed, roads added/removed, placed buildings + construction progress
+- Generation is deterministic from the map id + a seed, so saves only store what changed.
+
+### Milestones
+
+1. ✅ Setup, OSM import, map rendering with pan/zoom (this one)
+2. Plots and owners: click a plot → owner info panel
+3. Negotiation: offers, counters, refusals, deal options, reputation, neighbor influence, logs
+4. Demolish, road drawing, placing buildings on owned land
+5. Economy, clock, income, loans, save/load
+6. Polish: sound, animation, more building types, district/new-city mode
