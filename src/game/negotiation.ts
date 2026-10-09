@@ -157,7 +157,7 @@ export function minimumPrice(game: Game, o: Owner, value: number): number {
   if (o.holdout) return Infinity;
   const rec = game.record(o.id);
   if (o.kind === 'state') return value * 1.1 * (game.reputation < 40 ? 1.25 : 1);
-  const base = Math.max(0.6, o.minFactor + rec.expectationBoost - rec.pressureDiscount);
+  const base = Math.max(0.6, o.minFactor + rec.expectationBoost - rec.pressureDiscount + game.difficulty.ownerPriceOffset);
   const mood = o.mood >= 50 ? 1 - (o.mood - 50) * 0.0016 : 1 + (50 - o.mood) * 0.005;
   const rep = game.reputation >= 50 ? 1 - (game.reputation - 50) * 0.0014 : 1 + (50 - game.reputation) * 0.004;
   const neighbors = 1 - 0.2 * neighborsSoldShare(game, o).share;

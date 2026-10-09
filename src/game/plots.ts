@@ -3,6 +3,7 @@ import { bboxOf, centroid, distToSegment, offsetPolygon, pointInPolygon, polygon
 import { Rng, hashString } from '../util/random';
 import { SpatialGrid } from './spatial';
 import { BUILDING, LandGrid, ROAD, WATER } from './LandGrid';
+import { seaSampler } from '../shared/sea';
 import type { BuildingCategory, LandCategory, Plot, RoadAccess } from './types';
 import type { Region } from './regional';
 
@@ -104,6 +105,12 @@ export function buildPlots(map: MapData, region: Region, seed: number): PlotBuil
     for (const h of w.holes ?? []) grid.setPolygon(h, WATER, false);
   }
   for (const w of map.waterways) grid.forLine(w.line, w.width / 2, (i) => (grid.flags[i] |= WATER));
+  const isSea = seaSampler(map);
+  if (isSea) {
+    for (let y = 0; y < grid.h; y++) for (let x = 0; x < grid.w; x++) {
+      if (isSea(minX + x + 0.5, minY + y + 0.5)) grid.flags[y * grid.w + x] |= WATER;
+    }
+  }
   for (const r of map.roads) {
     if (r.kind === 'rail') grid.forLine(r.line, r.width / 2, (i) => (grid.flags[i] |= WATER)); // rails block like water
     else grid.addRoad(r.line, r.width, CAR_ROADS.has(r.kind), 1);

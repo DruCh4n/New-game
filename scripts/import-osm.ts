@@ -20,7 +20,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { BBox } from '../src/shared/mapTypes.ts';
-import { buildOverpassQuery, processOverpass, type OverpassResponse } from './lib/osm.ts';
+import { buildOverpassQuery, processOverpass, type OverpassResponse } from '../src/shared/osm.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MAPS_DIR = path.join(ROOT, 'maps');
@@ -163,9 +163,10 @@ async function main() {
   await writeFile(outPath, json);
 
   console.log(`\n✔ Saved ${path.relative(ROOT, outPath)}  (${(json.length / 1024).toFixed(0)} KB)`);
-  console.log(`  country: ${country ?? 'unknown (use --country XX)'}`);
-  console.table(stats);
-  if (stats.buildings === 0) console.warn('⚠ No buildings found. OSM may have little data here; the area will be empty state land.');
+  console.log(`  country: ${map.country ?? 'unknown (use --country XX)'}${country ? '' : ' (guessed from coordinates)'}`);
+  const { warnings, ...counts } = stats;
+  console.table(counts);
+  for (const w of warnings) console.warn(`⚠ ${w}`);
   console.log('Restart or reload `npm run dev` and pick the map from the map menu.\n');
 }
 

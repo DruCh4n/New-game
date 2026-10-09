@@ -7,8 +7,9 @@ import type { Game } from './Game';
 import type { NewBuilding } from './Development';
 import { OWNED, ROAD } from './LandGrid';
 import { buildingType } from './catalog';
+import { BALANCE } from './balance';
 
-export const DISTRICT_MIN_AREA = 20000; // m² of contiguous land you own
+export const DISTRICT_MIN_AREA = BALANCE.districtArea; // m² of connected land you own
 export type Zone = 0 | 1 | 2 | 3; // none, residential, commercial, green
 export const ZONE_NAMES = ['none', 'residential', 'commercial', 'green'] as const;
 /** Target share of each zone in a balanced district. */
@@ -120,22 +121,4 @@ export function permitFactor(game: Game, x: number, y: number): number {
 }
 
 /** Run-length encoding for save files. */
-export function encodeZones(z: Uint8Array): number[] {
-  const out: number[] = [];
-  let i = 0;
-  while (i < z.length) {
-    let j = i;
-    while (j < z.length && z[j] === z[i] && j - i < 1e6) j++;
-    out.push(z[i], j - i);
-    i = j;
-  }
-  return out;
-}
-
-export function decodeZones(rle: number[], into: Uint8Array) {
-  let p = 0;
-  for (let k = 0; k + 1 < rle.length; k += 2) {
-    into.fill(rle[k], p, p + rle[k + 1]);
-    p += rle[k + 1];
-  }
-}
+export { encodeRle as encodeZones, decodeRle as decodeZones } from '../shared/rle';

@@ -17,6 +17,7 @@ import { demand, monthlyIncome, unitPrice } from '../game/Economy';
 import { renderFinance } from './financePanel';
 import { renderGameMenu, type GameMenuActions } from './gamePanel';
 import { sound } from '../audio/Sound';
+import { renderImport, type ImportActions } from './importPanel';
 import type { Life } from '../render/Life';
 import { DISTRICT_MIN_AREA, districtStats, largestOwnedArea, type Zone } from '../game/District';
 
@@ -25,7 +26,7 @@ export type Tool = 'select' | 'demolish' | 'road' | 'build' | 'zone';
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T;
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 
-export type PanelMode = 'info' | 'overlay' | 'talk' | 'finance' | 'game';
+export type PanelMode = 'info' | 'overlay' | 'talk' | 'finance' | 'game' | 'import';
 
 export interface HudCallbacks {
   selectMap(key: string): void;
@@ -45,6 +46,7 @@ export interface HudCallbacks {
   addMoney(): void;
   gameMenu: GameMenuActions;
   setZone(z: Zone, brush: number): void;
+  importer: ImportActions;
   negotiation: NegotiationActions;
 }
 
@@ -189,7 +191,7 @@ export class Hud {
     this.renderToolbar();
   }
 
-  openPanel(mode: 'finance' | 'game' | 'info') {
+  openPanel(mode: 'finance' | 'game' | 'info' | 'import') {
     this.panel = mode;
     this.renderSidePanel();
     this.renderToolbar();
@@ -212,7 +214,7 @@ export class Hud {
       <div class="stat"><small>${t('top.reputation')}</small><span class="rep ${repClass}"><i style="width:${rep}%"></i><b>${rep}</b></span></div>
       <div class="stat"><small>${t('top.date')}</small><span>${formatDate(g.date())}</span></div>
       <div class="speed" role="group">
-        ${([0, 1, 2, 4] as Speed[]).map((n) => `<button data-speed="${n}" class="${g.speed === n ? 'active' : ''}" title="${n === 0 ? t('speed.pause') : t('speed.x', { n })}" aria-label="${n === 0 ? t('speed.pause') : t('speed.x', { n })}">${n === 0 ? '❚❚' : '▶'.repeat(n === 4 ? 3 : n)}</button>`).join('')}
+        ${([0, 1, 2, 4, 8] as Speed[]).map((n) => `<button data-speed="${n}" class="${g.speed === n ? 'active' : ''}" title="${n === 0 ? t('speed.pause') : t('speed.x', { n })}" aria-label="${n === 0 ? t('speed.pause') : t('speed.x', { n })}">${n === 0 ? '❚❚' : n === 8 ? '8×' : '▶'.repeat(n === 4 ? 3 : n)}</button>`).join('')}
       </div>`;
     el.querySelectorAll<HTMLElement>('[data-speed]').forEach((b) => (b.onclick = () => this.cb.setSpeed(parseInt(b.dataset.speed!, 10) as Speed)));
     document.getElementById('stat-money')!.onclick = () => this.openPanel(this.panel === 'finance' ? 'info' : 'finance');
@@ -283,12 +285,13 @@ export class Hud {
   private renderTopBar() {
     const el = $('#topbar');
     const options = this.maps
-      .map((m) => `<option value="${esc(m.key)}" ${m.key === this.currentKey ? 'selected' : ''}>${esc(m.key)}</option>`)
+      .map((m) => `<option value="${esc(m.key)}" ${m.key === this.currentKey ? 'selected' : ''}>${esc(m.label)}</option>`)
       .join('');
     const fileOpt = this.currentKey.startsWith('file:') ? `<option selected>${esc(this.currentKey.slice(5))}</option>` : '';
     el.innerHTML = `
       <span class="brand">Kota Baru</span>
       <label>${t('top.map')} <select id="map-select">${fileOpt}${options}</select></label>
+      <button id="open-import">🌏 ${t('imp.button')}</button>
       <button id="open-file">${t('top.openFile')}</button>
       <input id="file-input" type="file" accept=".json,application/json" hidden />
       <span class="spacer"></span>
@@ -308,6 +311,7 @@ export class Hud {
     };
     $<HTMLSelectElement>('#lang-select').onchange = (e) => setLang((e.target as HTMLSelectElement).value as never);
     $('#game-menu').onclick = () => this.openPanel(this.panel === 'game' ? 'info' : 'game');
+    $('#open-import').onclick = () => this.openPanel(this.panel === 'import' ? 'info' : 'import');
     $('#mute').onclick = () => { sound.unlock(); sound.setMuted(!sound.muted); this.renderTopBar(); };
     this.updateStats();
   }
@@ -318,6 +322,7 @@ export class Hud {
     el.classList.toggle('plot', this.panel === 'info' && !!this.selected);
     el.classList.toggle('talk', this.panel === 'talk');
     if (this.panel === 'overlay') return this.renderOverlayPanel(el);
+    if (this.panel === 'import') return renderImport(el, this.cb.importer);
     if (this.panel === 'game') {
       renderGameMenu(el, this.game, this.cb.gameMenu);
       el.insertAdjacentHTML('beforeend', this.settingsHtml());
@@ -350,6 +355,7 @@ export class Hud {
         <dt>${t('info.plots')}</dt><dd>${world.plots.length.toLocaleString()}</dd>
         <dt>${t('info.owners')}</dt><dd>${world.owners.length.toLocaleString()}</dd>
         <dt>${t('info.stateLand')}</dt><dd>${(stateArea / 10000).toFixed(1)} ha</dd>
+        ${this.game ? `<dt>${t('diff.label')}</dt><dd>${tk(`diff.${this.game.difficulty.id}`)}</dd>` : ''}
         <dt>${t('info.owned')}</dt><dd>${world.plots.filter((p) => world.statusOf(p.id) === 'sold').length}</dd>
         ${this.game ? `<dt>${t('info.ownedArea')}</dt><dd>${this.game.dev.ownedArea().toLocaleString()} m²</dd>` : ''}` : ''}
       </dl>
@@ -395,7 +401,7 @@ export class Hud {
     if (bt.income === 'sale') {
       rows.push(`<dt>${t('nb.sold')}</dt><dd>${b.unitsSold} / ${bt.units - b.reserved} · ${money(g.world, unitPrice(b))}</dd>`);
     } else {
-      rows.push(`<dt>${t('nb.occupancy')}</dt><dd>${Math.round(b.occupancy * 100)}% · ${money(g.world, monthlyIncome(b))}/mo</dd>`);
+      rows.push(`<dt>${t('nb.occupancy')}</dt><dd>${Math.round(b.occupancy * 100)}% · ${money(g.world, monthlyIncome(b, g.difficulty.income))}/mo</dd>`);
     }
     if (b.reserved) rows.push(`<dt></dt><dd>${t('nb.reserved', { n: b.reserved })}</dd>`);
     rows.push(`<dt>${t('nb.income')}</dt><dd>${money(g.world, b.incomeLastMonth)}</dd>`);

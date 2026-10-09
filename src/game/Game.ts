@@ -9,10 +9,11 @@ import type { Plot } from './types';
 import { closeMonth, onBuildingFinished, type Loan, type MonthReport } from './Economy';
 import { buildingType, needsPermit } from './catalog';
 import { checkUnlock, permitFactor } from './District';
+import { BALANCE, DIFFICULTIES, type Difficulty, type DifficultyId } from './balance';
 
-export type Speed = 0 | 1 | 2 | 4;
+export type Speed = 0 | 1 | 2 | 4 | 8;
 /** Real seconds per in-game day at 1× speed. */
-export const SECONDS_PER_DAY = 1.5;
+export const SECONDS_PER_DAY = BALANCE.secondsPerDay;
 
 /** Per-owner negotiation memory (persists across visits). */
 export interface OwnerRecord {
@@ -73,9 +74,12 @@ export class Game {
   private listeners = new Set<(e: GameEvent) => void>();
   private toastListeners = new Set<(t: Toast) => void>();
 
-  constructor(readonly world: World) {
+  readonly difficulty: Difficulty;
+
+  constructor(readonly world: World, difficulty: DifficultyId = 'normal') {
     const r = world.region;
-    this.money = Math.round((r.landPerM2 * 6000) / r.priceStep) * r.priceStep;
+    this.difficulty = DIFFICULTIES[difficulty] ?? DIFFICULTIES.normal;
+    this.money = Math.round((r.landPerM2 * this.difficulty.startMoney) / r.priceStep) * r.priceStep;
     this.dev = new Development(world, () => this.money);
     this.zones = new Uint8Array(world.grid.w * world.grid.h);
     this.dev.onChange = (_e, detail) => {
@@ -112,7 +116,7 @@ export class Game {
   permitDays(type: BuildingTypeId): number | null {
     if (!needsPermit(buildingType(type))) return 0;
     if (this.reputation < 25) return null;
-    return Math.round(7 + (100 - this.reputation) * 0.35);
+    return Math.round((7 + (100 - this.reputation) * 0.35) * this.difficulty.permitDays);
   }
 
   placeBuilding(type: BuildingTypeId, cx: number, cy: number, angle: number): Check {

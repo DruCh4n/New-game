@@ -97,6 +97,8 @@ export interface MapData {
   landuse: MapArea[];
   /** Individual trees as flat [x, y, x, y, ...]. */
   trees: FlatPoints;
+  /** Sea from coastlines: a raster over `bounds` at `res` m per cell, run-length encoded (1 = sea). */
+  sea?: { res: number; rle: number[] };
 }
 
 export function isMapData(v: unknown): v is MapData {

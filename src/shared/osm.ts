@@ -13,9 +13,10 @@ import {
   type MapRoad,
   type MapWaterway,
   type RoadKind,
-} from '../../src/shared/mapTypes.ts';
-import { LocalProjection } from '../../src/shared/projection.ts';
-import { bboxOf, centroid, polygonArea, roundPoints, simplifyLine } from '../../src/shared/geometry.ts';
+} from './mapTypes';
+import { LocalProjection } from './projection';
+import { bboxOf, centroid, pointInPolygon, polygonArea, roundPoints, simplifyLine } from './geometry';
+import { encodeRle } from './rle';
 
 type Tags = Record<string, string>;
 interface LatLonPt { lat: number; lon: number }
@@ -46,7 +47,13 @@ export function buildOverpassQuery(b: BBox): string {
   way["natural"~"^(wood|scrub|grassland|wetland|heath)$"];
   relation["natural"~"^(wood|scrub|wetland)$"];
   way["amenity"~"^(grave_yard)$"];
+  way["natural"="tree_row"];
+  way["natural"="coastline"];
   node["natural"="tree"];
+  node["shop"];
+  node["craft"];
+  node["office"];
+  node["amenity"]["amenity"!~"^(bench|waste_basket|waste_disposal|vending_machine|parking_entrance|bicycle_parking|telephone|post_box)$"];
 );
 out geom qt;`;
 }
@@ -155,6 +162,10 @@ export interface ProcessOptions {
 
 export interface ProcessStats {
   buildings: number;
+  /** Shops/amenities mapped as points that were attached to the building around them. */
+  pois: number;
+  /** Sea area inside the map, m² (from coastlines). */
+  sea: number;
   roads: number;
   water: number;
   waterways: number;
@@ -162,11 +173,15 @@ export interface ProcessStats {
   landuse: number;
   trees: number;
   skipped: number;
+  warnings: string[];
 }
 
 export function processOverpass(raw: OverpassResponse, opts: ProcessOptions): { map: MapData; stats: ProcessStats } {
   const { bbox } = opts;
   const center = { lat: (bbox.south + bbox.north) / 2, lon: (bbox.west + bbox.east) / 2 };
+  const warnings: string[] = [];
+  const pois: { x: number; y: number; t: Tags }[] = [];
+  const coastlines: FlatPoints[] = [];
   const proj = new LocalProjection(center);
   const [minX, maxY] = proj.toLocal(bbox.south, bbox.west);
   const [maxX, minY] = proj.toLocal(bbox.north, bbox.east);
@@ -216,7 +231,9 @@ export function processOverpass(raw: OverpassResponse, opts: ProcessOptions): { 
     const use = t.amenity || t.shop || t.office || t.tourism || t.craft;
     if (use) b.use = t.shop ? `shop:${t.shop}` : use;
     const lv = parseNum(t['building:levels']);
-    if (lv) b.levels = Math.round(lv);
+    const height = parseNum(t.height ?? t['building:height']);
+    if (lv) b.levels = Math.max(1, Math.round(lv));
+    else if (height && height < 400) b.levels = Math.max(1, Math.round(height / 3.2));
     if (t.name) b.name = t.name;
     buildings.push(b);
   };
@@ -224,9 +241,12 @@ export function processOverpass(raw: OverpassResponse, opts: ProcessOptions): { 
   for (const el of raw.elements) {
     const t = el.tags ?? {};
     if (el.type === 'node') {
+      const [x, y] = proj.toLocal(el.lat, el.lon);
+      const inside = x >= minX && x <= maxX && y >= minY && y <= maxY;
       if (t.natural === 'tree') {
-        const [x, y] = proj.toLocal(el.lat, el.lon);
-        if (x >= minX && x <= maxX && y >= minY && y <= maxY) trees.push(Math.round(x * 10) / 10, Math.round(y * 10) / 10);
+        if (inside) trees.push(Math.round(x * 10) / 10, Math.round(y * 10) / 10);
+      } else if (inside && (t.shop || t.amenity || t.craft || t.office)) {
+        pois.push({ x, y, t });
       }
       continue;
     }
@@ -237,6 +257,23 @@ export function processOverpass(raw: OverpassResponse, opts: ProcessOptions): { 
       const closed = geom.length >= 4 && !!geom[0] && !!geom[geom.length - 1] &&
         geom[0]!.lat === geom[geom.length - 1]!.lat && geom[0]!.lon === geom[geom.length - 1]!.lon;
 
+      if (t.natural === 'tree_row') {
+        // a row of trees: one every ~7 m along the line
+        const line = project(geom);
+        for (let i = 0; i + 3 < line.length; i += 2) {
+          const len = Math.hypot(line[i + 2] - line[i], line[i + 3] - line[i + 1]);
+          for (let d = 0; d < len; d += 7) {
+            const x = line[i] + ((line[i + 2] - line[i]) * d) / len, y = line[i + 1] + ((line[i + 3] - line[i + 1]) * d) / len;
+            if (x >= minX && x <= maxX && y >= minY && y <= maxY) trees.push(Math.round(x * 10) / 10, Math.round(y * 10) / 10);
+          }
+        }
+        continue;
+      }
+      if (t.natural === 'coastline') {
+        const line = project(geom);
+        if (line.length >= 4) coastlines.push(line);
+        continue;
+      }
       if (t.building && t.building !== 'no' && closed) {
         const ring = toRing(geom);
         if (ring) addBuilding(id, t, ring);
@@ -300,11 +337,50 @@ export function processOverpass(raw: OverpassResponse, opts: ProcessOptions): { 
     }
   }
 
+  // Shops, warungs, mosques… are often mapped as a point inside an untagged building.
+  let poiHits = 0;
+  if (pois.length && buildings.length) {
+    const cell = 25;
+    const index = new Map<string, MapBuilding[]>();
+    for (const b of buildings) {
+      const bb = bboxOf(b.poly);
+      for (let cx = Math.floor(bb.minX / cell); cx <= Math.floor(bb.maxX / cell); cx++)
+        for (let cy = Math.floor(bb.minY / cell); cy <= Math.floor(bb.maxY / cell); cy++) {
+          const k = `${cx},${cy}`;
+          (index.get(k) ?? index.set(k, []).get(k)!).push(b);
+        }
+    }
+    for (const p of pois) {
+      const b = (index.get(`${Math.floor(p.x / cell)},${Math.floor(p.y / cell)}`) ?? []).find((c) => pointInPolygon(p.x, p.y, c.poly));
+      if (!b) continue;
+      poiHits++;
+      if (!b.use) b.use = p.t.shop ? `shop:${p.t.shop}` : p.t.amenity || p.t.craft || p.t.office;
+      if (!b.name && p.t.name) b.name = p.t.name;
+    }
+  }
+
+  // Sea: coastlines are drawn with land on the left, water on the right.
+  let sea: MapData['sea'];
+  let seaArea = 0;
+  if (coastlines.length) {
+    const res = 2;
+    const r = computeSea(coastlines, bounds, res);
+    if (r) {
+      sea = { res, rle: r.rle };
+      seaArea = r.cells * res * res;
+    } else {
+      warnings.push('Coastline found but the sea side could not be determined; sea is not shown.');
+    }
+  }
+  if (!buildings.length) warnings.push('No buildings in this area: OSM has no building data here, so it will be empty state land.');
+  else if (buildings.length < 50) warnings.push(`Only ${buildings.length} buildings: OSM coverage here is thin.`);
+  const country = opts.country ?? guessCountry(center.lat, center.lon);
+
   const map: MapData = {
     format: MAP_FORMAT,
     version: MAP_VERSION,
     name: opts.name,
-    country: opts.country,
+    country,
     source: 'osm',
     attribution: '© OpenStreetMap contributors (ODbL)',
     importedAt: new Date().toISOString(),
@@ -319,11 +395,12 @@ export function processOverpass(raw: OverpassResponse, opts: ProcessOptions): { 
     landuse,
     trees,
   };
+  if (sea) map.sea = sea;
   return {
     map,
     stats: {
-      buildings: buildings.length, roads: roads.length, water: water.length, waterways: waterways.length,
-      greens: greens.length, landuse: landuse.length, trees: trees.length / 2, skipped,
+      buildings: buildings.length, pois: poiHits, sea: seaArea, roads: roads.length, water: water.length, waterways: waterways.length,
+      greens: greens.length, landuse: landuse.length, trees: trees.length / 2, skipped, warnings,
     },
   };
 }
@@ -331,4 +408,92 @@ export function processOverpass(raw: OverpassResponse, opts: ProcessOptions): { 
 function roundBounds(b: MapData['bounds']): MapData['bounds'] {
   const r = (v: number) => Math.round(v * 10) / 10;
   return { minX: r(b.minX), minY: r(b.minY), maxX: r(b.maxX), maxY: r(b.maxY) };
+}
+
+/**
+ * Floods the sea side of coastlines on a coarse raster. Returns null if land and sea
+ * leak into each other (coastline incomplete), so we never paint a town as sea.
+ */
+function computeSea(lines: FlatPoints[], b: MapData['bounds'], res: number): { rle: number[]; cells: number } | null {
+  const w = Math.ceil((b.maxX - b.minX) / res), h = Math.ceil((b.maxY - b.minY) / res);
+  const N = w * h;
+  const barrier = new Uint8Array(N);
+  const cellOf = (x: number, y: number) => {
+    const cx = Math.floor((x - b.minX) / res), cy = Math.floor((y - b.minY) / res);
+    return cx < 0 || cy < 0 || cx >= w || cy >= h ? -1 : cy * w + cx;
+  };
+  for (const l of lines) {
+    for (let i = 0; i + 3 < l.length; i += 2) {
+      const len = Math.hypot(l[i + 2] - l[i], l[i + 3] - l[i + 1]);
+      const steps = Math.ceil(len / (res * 0.4)) + 1;
+      for (let k = 0; k <= steps; k++) {
+        const x = l[i] + ((l[i + 2] - l[i]) * k) / steps, y = l[i + 1] + ((l[i + 3] - l[i + 1]) * k) / steps;
+        for (const [ox, oy] of [[0, 0], [res, 0], [0, res], [res, res]]) {
+          const c = cellOf(x + ox - res / 2, y + oy - res / 2);
+          if (c >= 0) barrier[c] = 1;
+        }
+      }
+    }
+  }
+  const sea = new Uint8Array(N);
+  const landSeeds: number[] = [];
+  const q = new Int32Array(N);
+  let qt = 0;
+  for (const l of lines) {
+    for (let i = 0; i + 3 < l.length; i += 2) {
+      const dx = l[i + 2] - l[i], dy = l[i + 3] - l[i + 1], len = Math.hypot(dx, dy);
+      if (len < 1) continue;
+      // in local coords (y south) the right-hand side of the way is (-dy, dx)
+      const nx = -dy / len, ny = dx / len, mx = (l[i] + l[i + 2]) / 2, my = (l[i + 1] + l[i + 3]) / 2;
+      const s = cellOf(mx + nx * res * 2.5, my + ny * res * 2.5);
+      if (s >= 0 && !barrier[s] && !sea[s]) { sea[s] = 1; q[qt++] = s; }
+      const ld = cellOf(mx - nx * res * 2.5, my - ny * res * 2.5);
+      if (ld >= 0 && !barrier[ld]) landSeeds.push(ld);
+    }
+  }
+  let qh = 0;
+  while (qh < qt) {
+    const i = q[qh++];
+    const x = i % w;
+    for (const j of [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, i - w, i + w]) {
+      if (j >= 0 && j < N && !sea[j] && !barrier[j]) { sea[j] = 1; q[qt++] = j; }
+    }
+  }
+  if (!qt) return null;
+  const leaked = landSeeds.filter((i) => sea[i]).length;
+  if (landSeeds.length && leaked / landSeeds.length > 0.3) return null;
+  // the coastline itself counts as sea edge
+  for (let i = 0; i < N; i++) if (barrier[i]) sea[i] = 1;
+  return { rle: encodeRle(sea), cells: qt };
+}
+
+/** Rough country from coordinates (used when the online lookup is unavailable). */
+export function guessCountry(lat: number, lon: number): string | undefined {
+  const inBox = (s: number, n: number, w: number, e: number) => lat >= s && lat <= n && lon >= w && lon <= e;
+  if (inBox(1.15, 1.48, 103.6, 104.1)) return 'SG';
+  if (inBox(1.2, 6.7, 99.6, 104.6)) return lat > 6.45 && lon < 101.2 ? 'TH' : 'MY';
+  if (inBox(1.8, 7.4, 109.5, 115) || inBox(4.25, 7.4, 115, 119.3)) return 'MY';
+  if (inBox(4.5, 21.2, 116.9, 126.7)) return 'PH';
+  if (inBox(8.4, 23.4, 105.6, 109.5)) return 'VN';
+  if (inBox(5.6, 20.5, 97.3, 105.7)) return 'TH';
+  if (inBox(-11.1, 6.1, 94.9, 141.1)) return 'ID';
+  return undefined;
+}
+
+/** Bounding box of the buildings in a raw Overpass response (when the query bbox is unknown). */
+export function inferBBox(raw: OverpassResponse): BBox | null {
+  let south = Infinity, west = Infinity, north = -Infinity, east = -Infinity;
+  const take = (p: { lat: number; lon: number } | null) => {
+    if (!p) return;
+    south = Math.min(south, p.lat); north = Math.max(north, p.lat);
+    west = Math.min(west, p.lon); east = Math.max(east, p.lon);
+  };
+  for (const el of raw.elements) if (el.type === 'way' && el.tags?.building) for (const p of el.geometry ?? []) take(p);
+  if (!Number.isFinite(south)) for (const el of raw.elements) if (el.type === 'way') for (const p of el.geometry ?? []) take(p);
+  if (!Number.isFinite(south) || north - south < 1e-5) return null;
+  return { south, west, north, east };
+}
+
+export function isOverpassResponse(v: unknown): v is OverpassResponse {
+  return !!v && Array.isArray((v as OverpassResponse).elements);
 }

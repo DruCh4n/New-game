@@ -1,8 +1,9 @@
-import { CanvasSource, Sprite, Texture } from 'pixi.js';
+import { CanvasSource, Container, Sprite, Texture } from 'pixi.js';
 import type { World } from '../game/World';
 import { BUILDING, NEWBLD, ROAD, WATER } from '../game/LandGrid';
 import { fbm, hash01, smoothstep } from './noise';
 import { Rng } from '../util/random';
+import { seaSampler } from '../shared/sea';
 
 /** Green area kinds rasterised into the terrain. */
 const GK: Record<string, number> = { park: 1, garden: 1, pitch: 2, grass: 3, forest: 4, scrub: 4, wetland: 5, farmland: 6, paddy: 6, orchard: 7, cemetery: 8 };
@@ -16,11 +17,13 @@ const CROWNS = [0x2f5a28, 0x37652d, 0x3f6f31, 0x467a36, 0x52843b, 0x5b8a3e, 0x3b
  * so open land looks like a satellite view instead of a flat colour.
  */
 export class Terrain {
-  readonly ground: Sprite;
-  readonly canopy: Sprite;
-  private canopyCanvas: HTMLCanvasElement;
-  private canopySource: CanvasSource;
+  /** Containers of tiles; add these to the scene. */
+  readonly ground = new Container();
+  readonly canopy = new Container();
+  private tiles: Tile[] = [];
   private trees: Tree[] = [];
+  /** Tree visibility at the last bake (trees vanish where land is cleared). */
+  private visible: Uint8Array = new Uint8Array(0);
   private seed: number;
   /** Scale of the canopy texture (pixels per meter). */
   private readonly cps = 2;
@@ -36,25 +39,10 @@ export class Terrain {
     for (const a of sorted) g.forPolygon(a.poly, (i) => (green[i] = GK[a.kind] ?? 3));
     const dBuild = distanceField(g.w, g.h, (i) => (g.flags[i] & BUILDING) !== 0, 20);
     const dRoad = distanceField(g.w, g.h, (i) => (g.flags[i] & ROAD) !== 0, 12);
-
-    // ----- ground texture (1 px per meter) -----
-    const canvas = document.createElement('canvas');
-    canvas.width = g.w;
-    canvas.height = g.h;
-    const ctx = canvas.getContext('2d')!;
-    const img = ctx.createImageData(g.w, g.h);
-    const px = new Uint32Array(img.data.buffer);
     const s = this.seed;
-    for (let y = 0; y < g.h; y++) {
-      for (let x = 0; x < g.w; x++) {
-        const i = y * g.w + x;
-        px[i] = groundColor(x + g.minX, y + g.minY, green[i], dBuild[i], dRoad[i], g.flags[i], s);
-      }
-    }
-    ctx.putImageData(img, 0, 0);
-    const gs = new CanvasSource({ resource: canvas, autoGenerateMipmaps: true, scaleMode: 'linear' });
-    this.ground = new Sprite(new Texture({ source: gs }));
-    this.ground.position.set(g.minX, g.minY);
+    const isSea = seaSampler(world.map);
+    // smooth noise fields, computed on a coarse grid and interpolated (much faster than per pixel)
+    const N1 = coarseNoise(g.w, g.h, 4, 28, s, 3), N2 = coarseNoise(g.w, g.h, 2, 9, s + 31, 2);
 
     // ----- trees: the map's own plus procedural clusters -----
     const rng = new Rng(world.seed ^ 0x7ee5);
@@ -77,7 +65,8 @@ export class Terrain {
         else if (kind === 7) p = 0.55;
         else {
           const d = dBuild[i];
-          p = d < 2 ? 0.02 : d < 4 ? 0.12 + 0.2 * cluster : 0.15 + 0.7 * cluster;
+          // gardens between houses are leafy; open land far from any house is mostly grass
+          p = d < 2 ? 0.02 : d < 4 ? 0.12 + 0.2 * cluster : d < 20 ? 0.15 + 0.7 * cluster : 0.04 + 0.3 * cluster;
         }
         if (rng.next() > p) continue;
         const r = (kind === 4 ? 2.6 : 1.7) + rng.next() * 2.6;
@@ -86,30 +75,83 @@ export class Terrain {
       }
     }
 
-    // ----- canopy texture (2 px per meter) -----
-    this.canopyCanvas = document.createElement('canvas');
-    this.canopyCanvas.width = g.w * this.cps;
-    this.canopyCanvas.height = g.h * this.cps;
-    this.canopySource = new CanvasSource({ resource: this.canopyCanvas, autoGenerateMipmaps: true, scaleMode: 'linear' });
-    this.canopy = new Sprite(new Texture({ source: this.canopySource }));
-    this.canopy.position.set(g.minX, g.minY);
-    this.canopy.scale.set(1 / this.cps);
+    // ----- tiles: ground at 1 px/m, canopy at 2 px/m (small textures fit every GPU) -----
+    for (let ty = 0; ty < g.h; ty += TILE) {
+      for (let tx = 0; tx < g.w; tx += TILE) {
+        const w = Math.min(TILE, g.w - tx), h = Math.min(TILE, g.h - ty);
+        const gc = document.createElement('canvas');
+        gc.width = w;
+        gc.height = h;
+        const ctx = gc.getContext('2d')!;
+        const img = ctx.createImageData(w, h);
+        const px = new Uint32Array(img.data.buffer);
+        for (let y = 0; y < h; y++) {
+          for (let x = 0; x < w; x++) {
+            const i = (ty + y) * g.w + tx + x;
+            const wx = tx + x + g.minX, wy = ty + y + g.minY;
+            px[y * w + x] = isSea && isSea(wx + 0.5, wy + 0.5) ? seaColor(wx, wy, s)
+              : groundColor(wx, wy, green[i], dBuild[i], dRoad[i], g.flags[i], s, sample(N1, tx + x, ty + y), sample(N2, tx + x, ty + y));
+          }
+        }
+        ctx.putImageData(img, 0, 0);
+        const groundSprite = new Sprite(new Texture({ source: new CanvasSource({ resource: gc, autoGenerateMipmaps: true, scaleMode: 'linear' }) }));
+        groundSprite.position.set(g.minX + tx, g.minY + ty);
+        // a 1 px overlap hides seams between tiles when zoomed out
+        groundSprite.width = w + 0.5;
+        groundSprite.height = h + 0.5;
+        this.ground.addChild(groundSprite);
+
+        const cc = document.createElement('canvas');
+        cc.width = w * this.cps;
+        cc.height = h * this.cps;
+        const source = new CanvasSource({ resource: cc, autoGenerateMipmaps: true, scaleMode: 'linear' });
+        const canopySprite = new Sprite(new Texture({ source }));
+        canopySprite.position.set(g.minX + tx, g.minY + ty);
+        canopySprite.scale.set(1 / this.cps);
+        this.canopy.addChild(canopySprite);
+        this.tiles.push({ x0: g.minX + tx, y0: g.minY + ty, w, h, canvas: cc, source, trees: [] });
+      }
+    }
+    // each tree goes into every tile its crown or shadow touches
+    const cols = Math.ceil(g.w / TILE);
+    this.trees.forEach((t, k) => {
+      const pad = t.r * 1.6;
+      const x0 = Math.floor((t.x - pad - g.minX) / TILE), x1 = Math.floor((t.x + pad - g.minX) / TILE);
+      const y0 = Math.floor((t.y - pad - g.minY) / TILE), y1 = Math.floor((t.y + pad - g.minY) / TILE);
+      for (let ty = Math.max(0, y0); ty <= y1; ty++) for (let tx = Math.max(0, x0); tx <= Math.min(cols - 1, x1); tx++) {
+        const tile = this.tiles[ty * cols + tx];
+        if (tile) tile.trees.push(k);
+      }
+    });
+    this.visible = new Uint8Array(this.trees.length);
     this.bakeCanopy(() => false);
   }
 
   get treeCount() { return this.trees.length; }
 
-  /** Redraws the canopy, leaving out trees where `cleared(cellIndex)` is true. */
+  /**
+   * Updates the canopy, leaving out trees where `cleared(cellIndex)` is true.
+   * Only tiles whose trees changed are redrawn.
+   */
   bakeCanopy(cleared: (i: number) => boolean) {
     const g = this.world.grid;
-    const ctx = this.canopyCanvas.getContext('2d')!;
-    const k = this.cps;
-    ctx.clearRect(0, 0, this.canopyCanvas.width, this.canopyCanvas.height);
-    const live = this.trees.filter((t) => {
+    const changed = new Uint8Array(this.trees.length);
+    let any = false;
+    this.trees.forEach((t, k) => {
       const i = g.index(t.x, t.y);
-      return i >= 0 && !cleared(i) && !(g.flags[i] & NEWBLD);
+      const v = i >= 0 && !cleared(i) && !(g.flags[i] & NEWBLD) ? 1 : 0;
+      if (v !== this.visible[k]) { this.visible[k] = v; changed[k] = 1; any = true; }
     });
-    const X = (x: number) => (x - g.minX) * k, Y = (y: number) => (y - g.minY) * k;
+    if (!any) return;
+    for (const tile of this.tiles) if (tile.trees.some((k) => changed[k])) this.drawTile(tile);
+  }
+
+  private drawTile(tile: Tile) {
+    const ctx = tile.canvas.getContext('2d')!;
+    const k = this.cps;
+    ctx.clearRect(0, 0, tile.canvas.width, tile.canvas.height);
+    const live = tile.trees.filter((i) => this.visible[i]).map((i) => this.trees[i]);
+    const X = (x: number) => (x - tile.x0) * k, Y = (y: number) => (y - tile.y0) * k;
     // shadows (sun from the north-west)
     ctx.fillStyle = 'rgba(16, 28, 10, 0.32)';
     ctx.beginPath();
@@ -136,25 +178,26 @@ export class Terrain {
         ctx.fill();
       }
     }
-    this.canopySource.update();
-    this.canopySource.updateMipmaps();
+    tile.source.update();
+    tile.source.updateMipmaps();
   }
 
   destroy() {
-    this.ground.destroy({ texture: true, textureSource: true });
-    this.canopy.destroy({ texture: true, textureSource: true });
+    this.ground.destroy({ children: true, texture: true, textureSource: true });
+    this.canopy.destroy({ children: true, texture: true, textureSource: true });
   }
 }
+
+const TILE = 256;
+interface Tile { x0: number; y0: number; w: number; h: number; canvas: HTMLCanvasElement; source: CanvasSource; trees: number[] }
 
 // ------------------------------------------------------------------ ground colours
 
 const YARD = [0xbdb3a0, 0xc8c0b0, 0xb1a58e, 0xa99a7d];
 const GRASS = 0x7c9f53, GRASS_LIGHT = 0x93b362, VEG = 0x4f7a36, VEG_DARK = 0x3d6530, DRY = 0xa2a06a, DIRT = 0xa48c66;
 
-function groundColor(x: number, y: number, kind: number, dB: number, dR: number, flags: number, s: number): number {
+function groundColor(x: number, y: number, kind: number, dB: number, dR: number, flags: number, s: number, n1: number, n2: number): number {
   const fine = hash01(Math.floor(x * 1.7), Math.floor(y * 1.7), s) * 0.08 - 0.04;
-  const n1 = fbm(x / 28, y / 28, s, 3);
-  const n2 = fbm(x / 9, y / 9, s + 31, 2);
   let c: number;
   if (flags & WATER) c = 0x55705a;
   else if (kind === 6) c = fieldColor(x, y, s);
@@ -178,6 +221,13 @@ function groundColor(x: number, y: number, kind: number, dB: number, dR: number,
   return rgba32(tint(c, 1 + fine));
 }
 
+/** Open water: deep blue with soft swell. */
+function seaColor(x: number, y: number, s: number): number {
+  const n = fbm(x / 35, y / 35, s + 77, 3);
+  const swell = Math.sin((x * 0.3 + y * 0.12) + n * 6) * 0.03;
+  return rgba32(tint(mix(0x3f7fae, 0x5a98c4, n), 1 + swell));
+}
+
 /** Rice fields: patches at different growth stages, with planting rows. */
 function fieldColor(x: number, y: number, s: number): number {
   const wx = x + (fbm(x / 60, y / 60, s + 9) - 0.5) * 14, wy = y + (fbm(x / 60, y / 60, s + 19) - 0.5) * 14;
@@ -189,6 +239,25 @@ function fieldColor(x: number, y: number, s: number): number {
 }
 
 // ------------------------------------------------------------------ helpers
+
+interface Coarse { step: number; cw: number; data: Float32Array }
+
+/** fBm sampled every `step` meters over the map. */
+function coarseNoise(w: number, h: number, step: number, scale: number, seed: number, octaves: number): Coarse {
+  const cw = Math.ceil(w / step) + 2, ch = Math.ceil(h / step) + 2;
+  const data = new Float32Array(cw * ch);
+  for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) data[y * cw + x] = fbm((x * step) / scale, (y * step) / scale, seed, octaves);
+  return { step, cw, data };
+}
+
+/** Bilinear lookup in a coarse noise grid (map-relative meters). */
+function sample(c: Coarse, x: number, y: number): number {
+  const fx = x / c.step, fy = y / c.step;
+  const x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
+  const i = y0 * c.cw + x0, d = c.data;
+  const a = d[i] + (d[i + 1] - d[i]) * tx, b = d[i + c.cw] + (d[i + c.cw + 1] - d[i + c.cw]) * tx;
+  return a + (b - a) * ty;
+}
 
 function distanceField(w: number, h: number, seed: (i: number) => boolean, cap: number): Uint8Array {
   const N = w * h;

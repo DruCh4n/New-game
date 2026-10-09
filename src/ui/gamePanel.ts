@@ -1,4 +1,5 @@
-import { t } from '../i18n';
+import { t, tk } from '../i18n';
+import type { DifficultyId } from '../game/balance';
 import { SLOTS, slotMeta, type Slot } from '../game/saveStore';
 import { formatDate, money } from './format';
 import type { Game } from '../game/Game';
@@ -9,11 +10,11 @@ export interface GameMenuActions {
   load(slot: Slot): void;
   exportFile(): void;
   importFile(file: File): void;
-  newGame(): void;
+  newGame(difficulty: DifficultyId): void;
   close(): void;
 }
 
-let confirmNew = false;
+let confirmNew: DifficultyId | null = null;
 
 /** Save / load panel. */
 export function renderGameMenu(el: HTMLElement, game: Game | null, a: GameMenuActions) {
@@ -36,7 +37,9 @@ export function renderGameMenu(el: HTMLElement, game: Game | null, a: GameMenuAc
       <input id="g-file" type="file" accept=".json,application/json" hidden />
     </div>
     <p class="hint">${t('game.hint')}</p>
-    <button id="g-new" class="wide danger">${confirmNew ? t('game.newConfirm') : t('game.new')}</button>`;
+    <h3>${t('game.new')}</h3>
+    <div class="row diff">${(['easy', 'normal', 'hard'] as DifficultyId[]).map((d) => `<button data-new="${d}" class="${confirmNew === d ? 'danger' : ''}">${tk(`diff.${d}`)}</button>`).join('')}</div>
+    <p class="hint">${confirmNew ? t('game.newConfirm') : t('diff.hint')}</p>`;
   el.querySelector<HTMLElement>('#panel-close')!.onclick = a.close;
   el.querySelectorAll<HTMLElement>('[data-save]').forEach((b) => (b.onclick = () => a.save(b.dataset.save as Slot)));
   el.querySelectorAll<HTMLElement>('[data-load]').forEach((b) => (b.onclick = () => a.load(b.dataset.load as Slot)));
@@ -44,7 +47,8 @@ export function renderGameMenu(el: HTMLElement, game: Game | null, a: GameMenuAc
   const file = el.querySelector<HTMLInputElement>('#g-file')!;
   el.querySelector<HTMLElement>('#g-import')!.onclick = () => file.click();
   file.onchange = () => { if (file.files?.[0]) a.importFile(file.files[0]); file.value = ''; };
-  el.querySelector<HTMLElement>('#g-new')!.onclick = () => {
-    if (confirmNew) { confirmNew = false; a.newGame(); } else { confirmNew = true; renderGameMenu(el, game, a); }
-  };
+  el.querySelectorAll<HTMLElement>('[data-new]').forEach((b) => (b.onclick = () => {
+    const d = b.dataset.new as DifficultyId;
+    if (confirmNew === d) { confirmNew = null; a.newGame(d); } else { confirmNew = d; renderGameMenu(el, game, a); }
+  }));
 }

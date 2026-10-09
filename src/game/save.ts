@@ -9,6 +9,7 @@ import type { DevSave } from './Development';
 import type { Loan, MonthReport } from './Economy';
 import type { PlotStatus } from './types';
 import { decodeZones, encodeZones } from './District';
+import type { DifficultyId } from './balance';
 
 export const SAVE_FORMAT = 'kotabaru-save';
 export const SAVE_VERSION = 1;
@@ -35,6 +36,8 @@ export interface SaveData {
   dev: DevSave;
   /** Added in Milestone 6 (optional so older saves still load). */
   districtUnlocked?: boolean;
+  /** Added in Milestone 7. */
+  difficulty?: DifficultyId;
   zones?: number[];
 }
 
@@ -60,6 +63,7 @@ export function serialize(game: Game, mapKey: string): SaveData {
     reports: game.reports,
     dev: game.dev.serialize(),
     districtUnlocked: game.districtUnlocked,
+    difficulty: game.difficulty.id,
     zones: encodeZones(game.zones),
   };
 }
@@ -73,7 +77,7 @@ export function isSaveData(v: unknown): v is SaveData {
 export function restore(save: SaveData, map: MapData): Game {
   if (save.version > SAVE_VERSION) throw new Error('save was made by a newer version of the game');
   const world = new World(map, save.seed);
-  const game = new Game(world);
+  const game = new Game(world, save.difficulty ?? 'normal');
   game.day = save.day;
   game.money = save.money;
   game.reputation = save.reputation;

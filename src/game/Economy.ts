@@ -6,6 +6,7 @@ import { buildingType } from './catalog';
 import type { Game, Obligation } from './Game';
 import type { NewBuilding } from './Development';
 import { districtBonus } from './District';
+import { BALANCE } from './balance';
 
 export interface Loan {
   id: string;
@@ -25,7 +26,7 @@ export interface MonthReport {
 }
 
 /** Days after which an unkept promise counts as broken. */
-export const PROMISE_DAYS = 730;
+export const PROMISE_DAYS = BALANCE.promiseDays;
 
 const r0 = (v: number) => Math.round(v);
 
@@ -49,15 +50,16 @@ export function debt(game: Game): number {
 
 /** Banks lend against half your property plus a small unsecured line. */
 export function creditLimit(game: Game): number {
-  const base = game.world.region.landPerM2 * 1500;
-  const secured = 0.5 * (ownedLandValue(game) + buildingsValue(game));
+  const base = game.world.region.landPerM2 * BALANCE.unsecuredCredit;
+  const secured = BALANCE.loanToValue * (ownedLandValue(game) + buildingsValue(game));
   const repFactor = game.reputation < 25 ? 0.5 : 1;
   return Math.max(0, roundStep(game, (base + secured) * repFactor - debt(game)));
 }
 
 /** Annual interest: 7% for a reputable developer, up to ~16% for a disreputable one. */
 export function loanRate(game: Game): number {
-  return Math.round((0.07 + Math.max(0, 60 - game.reputation) * 0.0015) * 1000) / 1000;
+  const r = BALANCE.loanBaseRate + Math.max(0, 60 - game.reputation) * BALANCE.loanRatePerRepPoint + game.difficulty.loanRate;
+  return Math.round(Math.max(0.02, r) * 1000) / 1000;
 }
 
 function roundStep(game: Game, v: number) {
@@ -98,12 +100,12 @@ export function demand(game: Game, b: NewBuilding): number {
 }
 
 /** Expected monthly income of a finished building at its current occupancy / sales pace. */
-export function monthlyIncome(b: NewBuilding): number {
+export function monthlyIncome(b: NewBuilding, incomeMult = 1): number {
   const bt = buildingType(b.type);
   if (b.daysLeft > 0 || b.permitDays > 0) return 0;
   if (bt.income === 'rent' || bt.income === 'lease') {
     const lettable = bt.units ? (bt.units - b.reserved) / bt.units : 1;
-    return r0(((b.cost * bt.yield) / 12) * b.occupancy * lettable);
+    return r0(((b.cost * bt.yield) / 12) * b.occupancy * lettable * incomeMult);
   }
   return 0;
 }
@@ -111,7 +113,7 @@ export function monthlyIncome(b: NewBuilding): number {
 /** Sale price of one apartment unit: total sales ≈ 1.7× construction cost. */
 export function unitPrice(b: NewBuilding): number {
   const bt = buildingType(b.type);
-  return r0((b.cost * 1.7) / bt.units);
+  return r0((b.cost * BALANCE.apartmentSalesMultiple) / bt.units);
 }
 
 // ------------------------------------------------------------------ events
@@ -147,19 +149,19 @@ export function closeMonth(game: Game): MonthReport {
     const bt = buildingType(b.type);
     if (b.daysLeft > 0 || b.permitDays > 0) { b.incomeLastMonth = 0; continue; }
     const d = demand(game, b);
-    costs.maintenance += (b.cost * 0.006) / 12;
+    costs.maintenance += (b.cost * BALANCE.maintenance) / 12;
     if (bt.income === 'rent' || bt.income === 'lease') {
       const target = Math.min(0.97, 0.45 + 0.45 * d);
       b.occupancy = Math.min(target, b.occupancy + 0.12 * d);
-      const v = monthlyIncome(b);
+      const v = monthlyIncome(b, game.difficulty.income);
       if (bt.income === 'rent') income.rent += v;
       else income.leases += v;
       b.incomeLastMonth = v;
     } else if (bt.income === 'sale') {
       const left = bt.units - b.reserved - b.unitsSold;
-      const sold = Math.min(left, Math.max(left > 0 ? 1 : 0, Math.round(bt.units * 0.05 * d)));
+      const sold = Math.min(left, Math.max(left > 0 ? 1 : 0, Math.round(bt.units * BALANCE.apartmentSalesPace * d)));
       b.unitsSold += sold;
-      const v = sold * unitPrice(b);
+      const v = Math.round(sold * unitPrice(b) * game.difficulty.income);
       income.sales += v;
       b.incomeLastMonth = v;
     } else {
@@ -170,7 +172,7 @@ export function closeMonth(game: Game): MonthReport {
   // Old houses you bought but haven't demolished are rented out cheaply.
   for (const p of game.world.plots) {
     if (!game.ownsPlot(p.id)) continue;
-    costs.tax += (p.landValue * 0.002) / 12;
+    costs.tax += (p.landValue * BALANCE.landTax) / 12;
     if (p.kind === 'building' && game.dev.buildingState(p) === 'standing') income.oldBuildings += (p.buildingValue * 0.08 + p.landValue * 0.01) / 12;
   }
 

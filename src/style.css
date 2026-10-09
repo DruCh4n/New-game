@@ -315,3 +315,13 @@ ul.slots li > span { display: flex; gap: 4px; flex: none; }
 #palette .district-stats .row { display: flex; gap: 4px; }
 #palette .district-stats .row button { font-size: 11px; padding: 2px 6px; }
 #topbar button.icon { padding: 4px 8px; }
+
+/* ---------- milestone 7: import panel ---------- */
+#sidepanel ol.steps { margin: 8px 0; padding-left: 20px; display: flex; flex-direction: column; gap: 12px; font-size: 13px; }
+#sidepanel ol.steps li { display: flex; flex-direction: column; gap: 6px; }
+#sidepanel label.field { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+#sidepanel input[type='text'], #sidepanel textarea {
+  background: #171a20; border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; color: var(--text); font: inherit;
+}
+#sidepanel textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; resize: vertical; width: 100%; }
+#sidepanel .steps a { color: var(--accent); font-size: 12px; align-self: center; }

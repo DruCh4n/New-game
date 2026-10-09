@@ -7,7 +7,9 @@ import { attachCameraControls } from './render/controls';
 import { MapRenderer } from './render/MapRenderer';
 import { OverlayManager } from './render/OverlayManager';
 import { PlotLayer, type Lens } from './render/PlotLayer';
-import { lastMap, listBundledMaps, loadMapFile, rememberMap } from './map/mapStore';
+import { lastMap, listBundledMaps, listMaps, loadMapFile, rememberMap, saveImportedMap } from './map/mapStore';
+import type { BBox } from './shared/mapTypes';
+import type { DifficultyId } from './game/balance';
 import { LocalProjection } from './shared/projection';
 import type { MapData } from './shared/mapTypes';
 import { Hud } from './ui/hud';
@@ -93,14 +95,33 @@ async function boot() {
   let currentKey = '';
   let currentLoader: (() => Promise<MapData>) | null = null;
 
-  const maps = listBundledMaps();
+  let maps = listBundledMaps();
 
-  async function show(loader: () => Promise<MapData>, key: string, save?: SaveData) {
+  /** Opens a map file or converts an Overpass download, keeping imported maps in the browser. */
+  async function openFile(file: File, bbox?: BBox, name?: string) {
+    hud.showLoading(t('loading'));
+    try {
+      const { map: m, stats } = await loadMapFile(file, bbox, name);
+      if (!stats) return void show(() => Promise.resolve(m), `file:${file.name}`);
+      const key = await saveImportedMap(m).catch(() => `file:${file.name}`);
+      maps = await listMaps();
+      hud.setMaps(maps, key);
+      rememberMap(key);
+      hud.showToast({ kind: 'good', key: 'imp.done', params: { n: stats.buildings, pois: stats.pois } });
+      for (const w of stats.warnings) hud.showToast({ kind: 'info', key: 'toast.problem', params: { problem: w } });
+      hud.openPanel('info');
+      await show(() => Promise.resolve(m), key);
+    } catch (e) {
+      hud.showLoading(t('loading.failed', { error: (e as Error).message }), true);
+    }
+  }
+
+  async function show(loader: () => Promise<MapData>, key: string, save?: SaveData, difficulty: DifficultyId = 'normal') {
     hud.showLoading(t('loading'));
     try {
       const m = await loader();
       await new Promise((r) => setTimeout(r, 30)); // let the loading message paint before heavy work
-      const g = save ? restore(save, m) : new Game(new World(m));
+      const g = save ? restore(save, m) : new Game(new World(m), difficulty);
       const w = g.world;
       currentKey = key;
       currentLoader = () => Promise.resolve(m);
@@ -329,7 +350,11 @@ async function boot() {
         rememberMap(key);
         void show(entry.load, key);
       },
-      openMapFile: (file) => void show(() => loadMapFile(file), `file:${file.name}`),
+      openMapFile: (file) => void openFile(file),
+      importer: {
+        load: (file, bbox, name) => void openFile(file, bbox, name),
+        close: () => hud.openPanel('info'),
+      },
       resetView: () => map && camera.fitBounds(map.bounds, 40, false),
       setLens,
       focusPlot: (id) => {
@@ -380,7 +405,7 @@ async function boot() {
             hud.showToast({ kind: 'bad', key: 'game.loadFailed', params: { error: (e as Error).message } });
           }
         },
-        newGame: () => { if (currentLoader) void show(currentLoader, currentKey); },
+        newGame: (d) => { if (currentLoader) void show(currentLoader, currentKey, undefined, d); },
         close: () => hud.openPanel('info'),
       },
       negotiation: {
@@ -537,8 +562,9 @@ async function boot() {
   } catch { /* ignore */ }
   hud.life = life;
 
-  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__game = { app, camera, renderer, get world() { return world; }, get game() { return game; }, get selected() { return selected; } };
+  if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__game = { app, camera, renderer, life, get terrain() { return terrain; }, get world() { return world; }, get game() { return game; }, get selected() { return selected; } };
 
+  maps = await listMaps();
   hud.setMaps(maps, '');
   hud.renderAll();
   if (!maps.length) {
