@@ -13,6 +13,7 @@ import { BALANCE, DIFFICULTIES, type Difficulty, type DifficultyId } from './bal
 import { checkObjectives, monthlyRules, type ScenarioState } from './scenarios';
 import type { Meeting, MeetingSession } from './meeting';
 import { monthlyMessages } from './messages';
+import { Papers, papersDaily, registerOfficials, serviceActive } from './papers';
 
 export type Speed = 0 | 1 | 2 | 4 | 8;
 /** Real seconds per in-game day at 1× speed. */
@@ -57,7 +58,7 @@ export interface Toast {
   params?: Record<string, string | number>;
 }
 
-export type GameEvent = 'day' | 'money' | 'status' | 'session' | 'speed' | 'dev' | 'month' | 'scenario';
+export type GameEvent = 'day' | 'money' | 'status' | 'session' | 'speed' | 'dev' | 'month' | 'scenario' | 'papers';
 
 /** Mutable game state on top of the generated World. */
 export class Game {
@@ -70,6 +71,8 @@ export class Game {
   meetingSession: MeetingSession | null = null;
   /** Past group meetings (their chat rooms). */
   readonly meetings: Meeting[] = [];
+  /** Land papers, officials and legal cases (Milestone 10). */
+  readonly papers = new Papers();
   readonly records = new Map<string, OwnerRecord>();
   readonly soldOwners = new Set<string>();
   readonly obligations: Obligation[] = [];
@@ -94,6 +97,8 @@ export class Game {
     this.difficulty = DIFFICULTIES[difficulty] ?? DIFFICULTIES.normal;
     this.money = Math.round((r.landPerM2 * this.difficulty.startMoney) / r.priceStep) * r.priceStep;
     this.dev = new Development(world, () => this.money);
+    registerOfficials(world);
+    this.dev.paperBlock = (k) => this.papers.registering.has(world.plots[k].id);
     this.zones = new Uint8Array(world.grid.w * world.grid.h);
     this.scenario = { id: 'sandbox', startCash: this.money, outcome: 'playing', overdueMonths: 0, lowRepMonths: 0, tutorialStep: 0, continued: false };
     this.dev.onChange = (_e, detail) => {
@@ -130,7 +135,7 @@ export class Game {
   permitDays(type: BuildingTypeId): number | null {
     if (!needsPermit(buildingType(type))) return 0;
     if (this.reputation < 25) return null;
-    return Math.round((7 + (100 - this.reputation) * 0.35) * this.difficulty.permitDays);
+    return Math.round((7 + (100 - this.reputation) * 0.35) * this.difficulty.permitDays * (serviceActive(this, 'camat') ? 0.5 : 1));
   }
 
   placeBuilding(type: BuildingTypeId, cx: number, cy: number, angle: number): Check {
@@ -191,6 +196,7 @@ export class Game {
       if (r.persuadeDiscount) r.persuadeDiscount = Math.max(0, r.persuadeDiscount - 0.001);
     }
     this.dev.advanceDay();
+    papersDaily(this);
     if (this.date().getUTCDate() === 1) {
       const report = closeMonth(this);
       monthlyRules(this);

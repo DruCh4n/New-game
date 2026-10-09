@@ -5,6 +5,7 @@
 import { Rng, hashString } from '../util/random';
 import type { Game } from './Game';
 import type { Owner } from './types';
+import { heirsBlock } from './papers';
 import {
   canVisit, immediateCost, minimumPrice, perceivedValue, settle, acceptKey, preferredOption,
   type DealOption, type LogEntry,
@@ -217,7 +218,10 @@ export function offerAll(game: Game, m: MeetingSession, pct: number, opts: DealO
     const min = r.min * Math.max(0.82, herd);
     const ratio = r.perceived / min;
     const talk = spoken < 6;
-    if (o.holdout) {
+    if (heirsBlock(game, o)) {
+      if (m.answers[o.id] !== 'no') say(game, m, o, 'papers.heirs');
+      m.answers[o.id] = 'no';
+    } else if (o.holdout) {
       if (m.answers[o.id] !== 'no') say(game, m, o, 'refuse.holdout');
       m.answers[o.id] = 'no';
       game.record(o.id).finalRefusal = true;

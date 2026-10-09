@@ -90,6 +90,8 @@ export interface Owner {
   /** 0-100, current mood toward the developer. */
   mood: number;
   plotIds: string[];
+  /** Officials only: lurah, camat, bpn. */
+  role?: string;
   relations: Relation[];
   stories: Story[];
 }

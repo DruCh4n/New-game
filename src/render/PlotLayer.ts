@@ -3,7 +3,7 @@ import type { World } from '../game/World';
 import type { Plot, PlotStatus } from '../game/types';
 import { RasterOverlay, rgba } from './RasterOverlay';
 
-export type Lens = 'normal' | 'plots' | 'value';
+export type Lens = 'normal' | 'plots' | 'value' | 'mine';
 
 export const STATUS_COLORS: Record<PlotStatus, number> = {
   not_approached: 0xffffff,
@@ -103,7 +103,14 @@ export class PlotLayer {
     const P = w.parcels, gw = w.grid.w, n = P.length;
     // one fill colour and one edge colour per plot
     const fill = new Uint32Array(w.plots.length), edge = new Uint32Array(w.plots.length);
-    if (this.lens === 'value') {
+    if (this.lens === 'mine') {
+      // your land bright green, everything else dimmed
+      for (const p of w.plots) {
+        const mine = w.statusOf(p.id) === 'sold';
+        fill[p.index] = mine ? rgba(0x4caf7d, 0.5) : rgba(0x10141a, 0.45);
+        edge[p.index] = mine ? rgba(0x9be0a8, 1) : rgba(0x10141a, 0.45);
+      }
+    } else if (this.lens === 'value') {
       const [lo, hi] = w.valueRange;
       for (const p of w.plots) {
         const c = valueColor((p.landValue / p.area - lo) / (hi - lo || 1));

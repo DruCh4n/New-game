@@ -25,6 +25,7 @@ import { Game } from './game/Game';
 import { acceptCounter, askHelp, giveGift, leave, listen, makeOffer, pressure, startVisit } from './game/negotiation';
 import { acceptAsks, communityFund, leaveMeeting, listenAll, offerAll, presentPlan, signAll, startMeeting } from './game/meeting';
 import { resetMeetingDraft } from './ui/chatPanel';
+import { checkPapers, greetOfficial, officialOwnerId, requestService, startRoute } from './game/papers';
 import { resetDraft } from './ui/negotiationPanel';
 import { DevLayer } from './render/DevLayer';
 import { Terrain } from './render/Terrain';
@@ -154,6 +155,7 @@ async function boot() {
         }
         if (e === 'day' || e === 'money' || e === 'speed') hud.updateStats();
         if (e === 'scenario') onScenario(g);
+        if (e === 'papers' && (hud.panel === 'office' || hud.panel === 'info')) hud.refreshPanel();
         if (e === 'month') {
           writeSlot('auto', serialize(g, currentKey));
           if (hud.panel === 'finance' || hud.panel === 'chats') hud.refreshPanel();
@@ -453,6 +455,26 @@ async function boot() {
         openMeeting: (id) => hud.openRoom('meeting', id),
         close: () => hud.openPanel('info'),
       },
+      office: {
+        request: (c) => { if (game && requestService(game, c)) { sound.play('coin'); hud.refreshPanel(); hud.updateStats(); } },
+        chat: (c) => { if (game) { greetOfficial(game, c); hud.openRoom('room', officialOwnerId(c)); } },
+        focus: (id) => { const p = world?.plot(id); if (p) { select(p); camera.centerOn(p.cx, p.cy, 3); } },
+        close: () => hud.openPanel('info'),
+      },
+      papers: {
+        check: (id) => { const p = world?.plot(id); if (p && game && checkPapers(game, p)) { hud.refreshPanel(); hud.updateStats(); } },
+        route: (id, kind) => { const p = world?.plot(id); if (p && game && startRoute(game, p, kind)) { sound.play('click'); hud.refreshPanel(); hud.updateStats(); } },
+      },
+      myLand: () => {
+        if (plotLayer.lens === 'mine') return setLens('normal');
+        setLens('mine');
+        if (!world || !game) return;
+        const mine = world.plots.filter((p) => game!.ownsPlot(p.id));
+        if (!mine.length) { hud.showToast({ kind: 'info', key: 'toast.noLand' }); return; }
+        const b = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+        for (const p of mine) { b.minX = Math.min(b.minX, p.cx - 15); b.maxX = Math.max(b.maxX, p.cx + 15); b.minY = Math.min(b.minY, p.cy - 15); b.maxY = Math.max(b.maxY, p.cy + 15); }
+        camera.fitBounds(b, 80, false);
+      },
       meeting: {
         present: () => meetingAct(presentPlan),
         listenAll: () => meetingAct(listenAll),
@@ -704,6 +726,7 @@ async function boot() {
     if (e.key === '1') setLens('normal');
     if (e.key === '2') setLens('plots');
     if (e.key === '3') setLens('value');
+    if (e.key === '4') document.getElementById('tb-mine')?.click();
   });
 
   let statusTimer = 0;

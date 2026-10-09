@@ -323,6 +323,40 @@ const en: DialogueTable = {
     'When can I open in the shop you promised me? My customers keep asking.',
     'My savings are running out. Where is the shop unit you promised?',
   ],
+  // ---------- land papers and officials (Milestone 10) ----------
+  'official.lurah.greet': [
+    'Welcome to the kelurahan. If you want residents to hear your plans properly, we can hold an official information session at the hall.',
+    'People trust what they hear in person. A public sosialisasi, with the RT heads invited, usually calms a lot of worries.',
+  ],
+  'official.lurah.done': ['The hall is booked and the invitations are out. People appreciated hearing it straight from you.', 'A good session. Lots of questions, but people left calmer.'],
+  'official.lurah.active': ['The information session is still fresh in people\'s minds. Let\'s not hold another one so soon.'],
+  'official.camat.greet': [
+    'Building permits go through this office. For larger projects there is an official fast-track service, with a fee set by regulation.',
+    'With the fast-track service your permit files are reviewed by a dedicated team. Everything by the book.',
+  ],
+  'official.camat.done': ['Your company is registered for the fast-track service. Your permits will be reviewed first.', 'Payment received, receipt attached. Fast-track is active.'],
+  'official.camat.active': ['Your fast-track service is still active.'],
+  'official.bpn.greet': [
+    'Land office, registry section. A registry search shows the status of every parcel in the area: certificates, girik, disputes.',
+    'With a registry subscription you see each plot\'s papers before you buy, and registrations are processed on the priority track.',
+  ],
+  'official.bpn.done': ['Your registry access is active. You can see the papers of every parcel now.', 'Done. Your registrations go on the priority track.'],
+  'official.bpn.active': ['Your registry access is still active.'],
+  'player.service.lurah': ['You pay for an official information session at the kelurahan hall ({cost}).'],
+  'player.service.camat': ['You pay the official permit fast-track fee ({cost}).'],
+  'player.service.bpn': ['You pay for a land registry search subscription ({cost}).'],
+  'papers.heirs': [
+    'I can\'t sign alone. This house was my parents\'. My brothers and sisters all have a share, and we haven\'t agreed on anything since the funeral.',
+    'The certificate is still in my late father\'s name. Until all the heirs agree, nobody can sell.',
+  ],
+  'papers.heirsAgree': [
+    'The notary got the whole family around one table. We\'ve agreed. Now we can talk business.',
+    'Alhamdulillah, my siblings finally signed the inheritance papers. Come and make your offer.',
+  ],
+  'system.case.court': ['You filed a lawsuit over this land.'],
+  'system.case.eviction': ['The city has ordered this land cleared.'],
+  'system.case.mediation': ['A notary is mediating with the heirs.'],
+  'system.taken': ['The land ({n} plot(s)) passed to you without a sale.'],
   'system.visit': ['Visit {n}'],
   'system.sold': ['Sold to you for {price}.'],
 };
@@ -595,6 +629,40 @@ const id: DialogueTable = {
     'Kapan saya bisa buka di kios yang dijanjikan? Pelanggan terus bertanya.',
     'Tabungan saya menipis. Mana unit toko yang Anda janjikan?',
   ],
+  // ---------- surat tanah dan pejabat (Milestone 10) ----------
+  'official.lurah.greet': [
+    'Selamat datang di kelurahan. Kalau ingin warga mendengar rencana Anda dengan baik, kita bisa adakan sosialisasi resmi di balai.',
+    'Warga lebih percaya kalau mendengar langsung. Sosialisasi terbuka dengan mengundang para ketua RT biasanya meredakan banyak kekhawatiran.',
+  ],
+  'official.lurah.done': ['Balai sudah dipesan dan undangan sudah disebar. Warga senang mendengar langsung dari Anda.', 'Sosialisasi yang bagus. Banyak pertanyaan, tapi warga pulang lebih tenang.'],
+  'official.lurah.active': ['Sosialisasi kemarin masih segar di ingatan warga. Jangan terlalu cepat mengadakan lagi.'],
+  'official.camat.greet': [
+    'Izin bangunan lewat kantor ini. Untuk proyek besar ada layanan percepatan resmi, dengan tarif sesuai peraturan.',
+    'Dengan layanan percepatan, berkas izin Anda ditinjau tim khusus. Semua sesuai prosedur.',
+  ],
+  'official.camat.done': ['Perusahaan Anda terdaftar di layanan percepatan. Izin Anda ditinjau lebih dulu.', 'Pembayaran diterima, kuitansi terlampir. Percepatan aktif.'],
+  'official.camat.active': ['Layanan percepatan Anda masih aktif.'],
+  'official.bpn.greet': [
+    'BPN, bagian buku tanah. Penelusuran buku tanah menunjukkan status setiap bidang di wilayah ini: sertifikat, girik, sengketa.',
+    'Dengan langganan penelusuran, Anda bisa lihat surat setiap persil sebelum membeli, dan pendaftaran diproses di jalur prioritas.',
+  ],
+  'official.bpn.done': ['Akses buku tanah Anda aktif. Sekarang Anda bisa melihat surat setiap bidang.', 'Beres. Pendaftaran Anda masuk jalur prioritas.'],
+  'official.bpn.active': ['Akses buku tanah Anda masih aktif.'],
+  'player.service.lurah': ['Anda membayar sosialisasi resmi di balai kelurahan ({cost}).'],
+  'player.service.camat': ['Anda membayar biaya resmi percepatan izin ({cost}).'],
+  'player.service.bpn': ['Anda membayar langganan penelusuran buku tanah ({cost}).'],
+  'papers.heirs': [
+    'Saya tidak bisa tanda tangan sendiri. Rumah ini peninggalan orang tua. Kakak-adik saya semua punya bagian, dan sejak pemakaman kami tidak pernah sepakat.',
+    'Sertifikatnya masih atas nama almarhum bapak. Sebelum semua ahli waris setuju, tidak ada yang bisa menjual.',
+  ],
+  'papers.heirsAgree': [
+    'Notaris berhasil mengumpulkan seluruh keluarga. Kami sudah sepakat. Sekarang kita bisa bicara bisnis.',
+    'Alhamdulillah, saudara-saudara saya akhirnya tanda tangan surat waris. Silakan datang dan beri tawaran.',
+  ],
+  'system.case.court': ['Anda mengajukan gugatan atas tanah ini.'],
+  'system.case.eviction': ['Pemkot memerintahkan penertiban tanah ini.'],
+  'system.case.mediation': ['Notaris sedang memediasi para ahli waris.'],
+  'system.taken': ['Tanah ({n} persil) berpindah ke Anda tanpa jual beli.'],
   'system.visit': ['Kunjungan {n}'],
   'system.sold': ['Dijual kepada Anda seharga {price}.'],
 };

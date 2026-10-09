@@ -118,6 +118,23 @@ build a tower with a loan, sell units, repeat) and prints cash, debt and net wor
 results on the sample map: Easy ≈ Rp 63 B → 235 B, Normal ≈ 42 B → 128 B, Hard ≈ 35 B → 101 B, with a
 cash squeeze in year one (Hard drops to ~20% of its starting net worth before the first tower sells).
 
+### Land papers and the land office
+
+- **Papers.** Every plot has papers: an SHM or HGB certificate, an old girik, only a sale deed (AJB),
+  an inheritance dispute, no papers at all, or two overlapping certificates. Press **Check papers** in a
+  plot's panel (a small fee) to see them.
+- **Registration.** Land with weak papers must be registered after you buy it (45–90 days, a fee)
+  before you can build on it. Building there before then shows "Papers still being registered".
+- **Legal routes.** Heirs who can't agree: pay a notary to mediate, then negotiate normally. Girik, AJB
+  or overlapping claims: contest them in court (120 days, a real chance to lose). Land held without
+  papers: ask the city to clear it, which pays the occupants compensation but costs reputation and
+  makes headlines.
+- **🏛 Land office** (top bar): the lurah, the camat and a BPN official, each with a face and a chat
+  room, offering official services: a public information session (reputation and goodwill), a permit
+  fast-track (permits take half as long), and a registry search (see every plot's papers, faster
+  registration). The panel also lists running cases and news headlines.
+- **🟩 My land** (toolbar, or key 4): highlights everything you own, dims the rest and zooms to it.
+
 ### People, chats and meetings
 
 - **Faces.** Every owner has their own face (skin, hair, hijab or peci, glasses, age), and it changes
@@ -319,9 +336,9 @@ land area × country price × location factor (main road ×1.7, street ×1.0, al
 8. ✅ Scenarios with goals, win/lose rules, end-of-game score and rank, guided tutorial
 9. ✅ People: faces with emotions, a chat room per person, messages between visits, group meetings
    (multi-select), help from neighbours and the RT head, closable map info
-10. Land papers and the dark side: certificates (SHM/HGB/girik/AJB), missing or disputed papers, legal
-    routes, land mafia (forged duplicates), bribing officials, ormas/preman, staged trouble and arson,
-    with heat, investigations, court and media consequences
+10. ✅ Land papers (SHM/HGB/girik/AJB, inheritance disputes, no papers, overlapping claims), checking
+    papers, registration after buying, legal routes (notary, court, city clearance), officials with
+    paid services, a land office panel with cases and headlines, and a "My land" view
 11. Builder and sales: build grid with snapping, building variants and sizes (house types, floors),
     demolishing roads enclosed by your land, a sales and marketing office with prices, campaigns and
     buyer characters

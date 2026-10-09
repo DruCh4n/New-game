@@ -8,6 +8,7 @@
 import { Rng, hashString } from '../util/random';
 import type { Game } from './Game';
 import type { Owner, Plot, RelationKind } from './types';
+import { afterPurchase, heirsBlock } from './papers';
 
 export type DealOption = 'moving' | 'relocation' | 'apartment' | 'shop';
 export const DEAL_OPTIONS: DealOption[] = ['moving', 'relocation', 'apartment', 'shop'];
@@ -260,6 +261,11 @@ export function makeOffer(game: Game, s: Session, cash: number, opts: DealOption
     return finishRefusal(game, s, o);
   }
   if (o.kind === 'state') return stateOffer(game, s, o, cash);
+  if (heirsBlock(game, o)) {
+    say(game, o, 'papers.heirs', undefined, s.round);
+    game.papers.checked.add(firstPlot.id);
+    return afterRound(game, s, o, 'low');
+  }
 
   const perceived = perceivedValue(game, o, s.value, cash, opts);
   const min = minimumPrice(game, o, s.value);
@@ -399,6 +405,7 @@ export function settle(game: Game, o: Owner, plotIds: string[], value: number, c
   game.setStatus(plotIds, 'sold');
   if (o.kind !== 'state') game.soldOwners.add(o.id);
   rec.finalRefusal = false;
+  afterPurchase(game, plotIds);
 }
 
 // ------------------------------------------------------------------ help from others

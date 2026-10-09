@@ -100,11 +100,11 @@ export function renderNegotiation(el: HTMLElement, game: Game, ownerId: string, 
     el.innerHTML = `<div class="neg">${head}
       <div class="room-actions">
         ${unsold && !game.meetingSession ? `<button id="room-visit" class="primary">${isState ? t('panel.applyState') : t('panel.visit')}</button>` : ''}
-        <button id="room-map">📍 ${t('chat.showMap')}</button>
+        ${o.plotIds.length ? `<button id="room-map">📍 ${t('chat.showMap')}</button>` : ''}
       </div></div>`;
     wire(el, a);
     el.querySelector('#room-visit')?.addEventListener('click', () => a.visitOwner(o.id));
-    el.querySelector<HTMLElement>('#room-map')!.onclick = () => a.showOnMap(o.id);
+    el.querySelector('#room-map')?.addEventListener('click', () => a.showOnMap(o.id));
     el.querySelector<HTMLElement>('#neg-back')!.onclick = a.chats;
     return;
   }

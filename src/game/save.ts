@@ -12,6 +12,7 @@ import { decodeZones, encodeZones } from './District';
 import type { DifficultyId } from './balance';
 import type { ScenarioState } from './scenarios';
 import type { Meeting } from './meeting';
+import type { PapersSave } from './papers';
 
 export const SAVE_FORMAT = 'kotabaru-save';
 export const SAVE_VERSION = 1;
@@ -45,6 +46,8 @@ export interface SaveData {
   scenario?: ScenarioState;
   /** Added in Milestone 9. */
   meetings?: Meeting[];
+  /** Added in Milestone 10. */
+  papers?: PapersSave;
 }
 
 export function serialize(game: Game, mapKey: string): SaveData {
@@ -72,6 +75,7 @@ export function serialize(game: Game, mapKey: string): SaveData {
     difficulty: game.difficulty.id,
     scenario: game.scenario,
     meetings: game.meetings,
+    papers: game.papers.serialize(),
     zones: encodeZones(game.zones),
   };
 }
@@ -103,6 +107,7 @@ export function restore(save: SaveData, map: MapData): Game {
   if (save.zones) decodeZones(save.zones, game.zones);
   if (save.scenario) game.scenario = { ...save.scenario };
   if (save.meetings) game.meetings.push(...save.meetings);
+  if (save.papers) game.papers.restore(save.papers);
   game.speed = 0; // start paused after loading
   return game;
 }

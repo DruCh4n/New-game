@@ -28,7 +28,7 @@ export interface NewBuilding {
   incomeLastMonth: number;
 }
 
-export type Problem = 'outside' | 'water' | 'onRoad' | 'blocked' | 'notOwned' | 'setback' | 'noRoad' | 'money' | 'tooShort' | 'permit';
+export type Problem = 'outside' | 'water' | 'onRoad' | 'blocked' | 'notOwned' | 'setback' | 'noRoad' | 'money' | 'tooShort' | 'permit' | 'papers';
 export interface Check { ok: boolean; problem?: Problem; cost: number; days: number }
 
 export interface DevSave {
@@ -51,6 +51,8 @@ const REMOVABLE_ROADS = new Set<RoadKind>(['service', 'path', 'track', 'living_s
  */
 export class Development {
   readonly grid: LandGrid;
+  /** Plots (by index) where building must wait for papers to be registered. */
+  paperBlock: ((plotIndex: number) => boolean) | null = null;
   readonly demolished = new Set<string>();
   readonly demolishing = new Map<string, Demolition>();
   readonly removedRoads = new Set<string>();
@@ -256,6 +258,12 @@ export class Development {
       if (p >= 0 && (worst < 0 || p < worst)) worst = p;
     });
     if (worst >= 0) return { ok: false, problem: rank[worst], cost, days };
+    if (this.paperBlock) {
+      let blocked = false;
+      const P = this.world.parcels;
+      g.forPolygon(poly, (i) => { if (!blocked && P[i] >= 0 && this.paperBlock!(P[i])) blocked = true; });
+      if (blocked) return { ok: false, problem: 'papers', cost, days };
+    }
     if (bt.setback > 0) {
       const inner = new Set<number>();
       g.forPolygon(poly, (i) => inner.add(i));

@@ -37,15 +37,15 @@ function lookFor(o: Owner): Look {
   const female = o.kind === 'person' ? o.gender === 'f' : rng.chance(0.35);
   const age = o.age ?? rng.int(30, 55);
   const grey = age > 58 ? rng.chance(0.75) : age > 48 && rng.chance(0.3);
-  const outfit: Look['outfit'] = o.kind === 'company' ? 'suit' : o.kind === 'state' ? 'uniform' : o.kind === 'institution' ? 'koko' : 'casual';
+  const outfit: Look['outfit'] = o.role ? 'uniform' : o.kind === 'company' ? 'suit' : o.kind === 'state' ? 'uniform' : o.kind === 'institution' ? 'koko' : 'casual';
   l = {
     skin: rng.pick(SKIN),
     female,
     age,
     hair: grey ? rng.pick(['#bdb7ae', '#9a948c', '#d8d3cb']) : rng.pick(HAIR),
     style: rng.int(0, 2),
-    hijab: female && (o.kind === 'institution' || rng.chance(0.62)) ? rng.pick(HIJAB) : null,
-    peci: !female && (o.kind === 'institution' || (age > 50 && rng.chance(0.45)) || rng.chance(0.12)),
+    hijab: female && (o.kind === 'institution' || !!o.role || rng.chance(0.62)) ? rng.pick(HIJAB) : null,
+    peci: !female && !o.role && (o.kind === 'institution' || (age > 50 && rng.chance(0.45)) || rng.chance(0.12)),
     glasses: rng.chance(age > 50 ? 0.35 : 0.15),
     mustache: !female && rng.chance(0.38),
     beard: !female && age > 45 && rng.chance(0.18),
@@ -68,6 +68,7 @@ export function emotionForLine(key: string): Emotion | null {
     [/^counter\.|^hint\.|^remark\.|^meet\.maybe|^listen|^state\.reject/, 'thinking'],
     [/^refuse\.wontMeet|^gift\.again|^persuade\..*no/, 'surprised'],
   ];
+  rules.unshift([/^papers\.heirs$/, 'worried'], [/^papers\.heirsAgree|^official\.\w+\.done/, 'happy']);
   for (const [re, e] of rules) if (re.test(key)) return e;
   return null;
 }

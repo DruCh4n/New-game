@@ -14,6 +14,8 @@ import { currentEmotion, renderNegotiation, type NegotiationActions } from './ne
 import { renderChats, renderMeeting, renderMulti, type ChatActions, type MeetingActions } from './chatPanel';
 import { portrait } from './portrait';
 import { unreadRooms } from '../game/messages';
+import { renderOffice, type OfficeActions } from './officePanel';
+import { caseFor, legalRoutes, paperOf, papersKnown, checkCost, type CaseKind } from '../game/papers';
 import { BUILDING_TYPES, ROAD_TYPES, buildingType, type BuildingTypeId, type RoadTypeId } from '../game/catalog';
 import type { NewBuilding } from '../game/Development';
 import { demand, monthlyIncome, unitPrice } from '../game/Economy';
@@ -29,7 +31,7 @@ export type Tool = 'select' | 'demolish' | 'road' | 'build' | 'zone';
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T;
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 
-export type PanelMode = 'info' | 'overlay' | 'talk' | 'finance' | 'game' | 'import' | 'chats' | 'room' | 'meeting' | 'multi';
+export type PanelMode = 'info' | 'overlay' | 'talk' | 'finance' | 'game' | 'import' | 'chats' | 'room' | 'meeting' | 'multi' | 'office';
 
 export interface HudCallbacks {
   selectMap(key: string): void;
@@ -52,6 +54,9 @@ export interface HudCallbacks {
   importer: ImportActions;
   negotiation: NegotiationActions;
   chats: ChatActions;
+  office: OfficeActions;
+  papers: { check(plotId: string): void; route(plotId: string, kind: CaseKind): void };
+  myLand(): void;
   meeting: MeetingActions;
   multi: { meet(): void; clear(): void; focus(id: string): void; remove(id: string): void; addNeighbors(id: string): void };
 }
@@ -209,7 +214,7 @@ export class Hud {
   }
 
   /** Chat list, one person's room, a meeting, or the multi-selection. */
-  openRoom(kind: 'chats' | 'room' | 'meeting' | 'multi', id?: string) {
+  openRoom(kind: 'chats' | 'room' | 'meeting' | 'multi' | 'office', id?: string) {
     if (kind === 'room') this.roomOwner = id ?? this.roomOwner;
     if (kind === 'meeting') this.roomMeeting = id ?? this.roomMeeting;
     this.panel = kind;
@@ -222,8 +227,10 @@ export class Hud {
     const b = document.getElementById('chat-btn');
     if (!b || !this.game) return;
     const n = unreadRooms(this.game) + this.game.meetings.filter((m) => m.read < m.log.length).length;
-    b.innerHTML = `💬 ${t('chat.title')}${n ? `<i class="badge">${n}</i>` : ''}`;
+    b.title = t('chat.title');
+    b.innerHTML = `💬 <span class="lbl">${t('chat.title')}</span>${n ? `<i class="badge">${n}</i>` : ''}`;
     b.classList.toggle('active', this.panel === 'chats' || this.panel === 'room' || this.panel === 'meeting');
+    document.getElementById('office-btn')?.classList.toggle('active', this.panel === 'office');
   }
 
   openPanel(mode: 'finance' | 'game' | 'info' | 'import') {
@@ -262,6 +269,7 @@ export class Hud {
     if (w && typeof params.ownerId === 'string') params.owner = ownerName(w.owner(params.ownerId)!);
     if (w && typeof params.price === 'number') params.price = money(w, params.price);
     if (w && typeof params.cost === 'number') params.cost = money(w, params.cost);
+    if (typeof params.headline === 'string') params.headline = tk(params.headline, params);
     if (this.game && typeof params.buildingId === 'string') {
       const b = this.game.dev.buildings.find((x) => x.id === params.buildingId);
       params.building = b ? tk(`bt.${b.type}`) : '';
@@ -334,6 +342,7 @@ export class Hud {
       <div id="stats"></div>
       <span class="spacer"></span>
       <button id="chat-btn"></button>
+      <button id="office-btn" title="${t('office.title')}">🏛 <span class="lbl">${t('office.title')}</span></button>
       <button id="mute" class="icon" title="${t('set.sound')}" aria-label="${t('set.sound')}">${sound.muted ? '🔇' : '🔊'}</button>
       <button id="game-menu">☰ ${t('top.game')}</button>
       <label>${t('top.language')}
@@ -349,6 +358,7 @@ export class Hud {
     $<HTMLSelectElement>('#lang-select').onchange = (e) => setLang((e.target as HTMLSelectElement).value as never);
     $('#game-menu').onclick = () => this.openPanel(this.panel === 'game' ? 'info' : 'game');
     $('#open-import').onclick = () => this.openPanel(this.panel === 'import' ? 'info' : 'import');
+    $('#office-btn').onclick = () => (this.panel === 'office' ? this.openPanel('info') : this.openRoom('office'));
     $('#chat-btn').onclick = () => {
       const inChat = this.panel === 'chats' || this.panel === 'room' || this.panel === 'meeting';
       if (inChat) this.openPanel('info'); else this.openRoom('chats');
@@ -369,6 +379,7 @@ export class Hud {
       this.roomMeeting = g0.meetingSession.meeting.id;
     }
     if (this.panel === 'chats' && g0) return renderChats(el, g0, this.cb.chats);
+    if (this.panel === 'office' && g0) return renderOffice(el, g0, this.cb.office);
     if (this.panel === 'room' && g0 && this.roomOwner) return renderNegotiation(el, g0, this.roomOwner, this.session, this.cb.negotiation);
     if (this.panel === 'meeting' && g0 && this.roomMeeting) {
       const m = g0.meetings.find((x) => x.id === this.roomMeeting);
@@ -538,14 +549,41 @@ export class Hud {
           <dt>id</dt><dd>${esc(p.id)} / ${esc(o.id)}</dd>
         </dl>` : ''}
 
+      ${this.papersSection(p, o)}
       ${this.visitSection(p, o)}`;
 
     $('#panel-close').onclick = () => this.cb.clearSelection();
     document.getElementById('panel-visit')?.addEventListener('click', () => this.cb.visit(p.id));
     document.getElementById('panel-chat')?.addEventListener('click', () => this.openRoom('room', o.id));
+    document.getElementById('papers-check')?.addEventListener('click', () => this.cb.papers.check(p.id));
+    el.querySelectorAll<HTMLElement>('[data-route]').forEach((b) => (b.onclick = () => this.cb.papers.route(p.id, b.dataset.route as CaseKind)));
     document.getElementById('panel-multi')?.addEventListener('click', () => this.cb.multi.addNeighbors(p.id));
     document.getElementById('panel-demolish')?.addEventListener('click', () => this.cb.demolishPlot(p.id));
     el.querySelectorAll<HTMLElement>('[data-plot]').forEach((b) => (b.onclick = () => this.cb.focusPlot(b.dataset.plot!)));
+  }
+
+  /** Land papers: what they are (once checked), registration, legal routes and running cases. */
+  private papersSection(p: Plot, o: Owner): string {
+    const g = this.game;
+    if (!g || o.kind === 'state') return '';
+    const w = g.world;
+    const kind = paperOf(w, p);
+    const reg = g.papers.registering.get(p.id);
+    const c = caseFor(g, p.id);
+    const rows: string[] = [];
+    if (papersKnown(g, p)) {
+      rows.push(`<div class="paper paper-${kind}"><b>📜 ${tk(`paper.${kind}`)}</b><small>${tk(`paper.${kind}.desc`)}</small></div>`);
+    } else {
+      rows.push(`<button id="papers-check" class="wide" ${checkCost(g, p) > g.money ? 'disabled' : ''}>📜 ${t('papers.check', { cost: money(w, checkCost(g, p)) })}</button>`);
+    }
+    if (reg) rows.push(`<p class="hint">⏳ ${t('papers.registering', { days: reg })}</p>`);
+    if (c) rows.push(`<p class="hint case">${tk(`case.${c.kind}`, { days: c.daysLeft })}</p>`);
+    if (papersKnown(g, p)) {
+      for (const r of legalRoutes(g, p)) {
+        rows.push(`<button class="wide route" data-route="${r.kind}" ${r.cost > g.money ? 'disabled' : ''}>${tk(`route.${r.kind}`, { cost: money(w, r.cost), days: r.days, chance: Math.round(r.chance * 100) })}</button>`);
+      }
+    }
+    return `<h3>${t('papers.title')}</h3>${rows.join('')}`;
   }
 
   /** Negotiation summary + visit button (or ownership info). */
@@ -652,6 +690,10 @@ export class Hud {
     const el = $('#legend');
     if (this.lens === 'normal') { el.hidden = true; return; }
     el.hidden = false;
+    if (this.lens === 'mine') {
+      el.innerHTML = `<b>${t('legend.mine')}</b><div class="key"><span class="sw fill" style="--c:#4caf7d"></span>${t('legend.mine')}</div>`;
+      return;
+    }
     if (this.lens === 'value') {
       el.innerHTML = `<b>${t('legend.value')}</b>
         <div class="ramp" style="background:linear-gradient(90deg,${VALUE_RAMP.map(hex).join(',')})"></div>
@@ -679,6 +721,7 @@ export class Hud {
       <div class="segmented">${lenses.map(([l, k, key]) => `<button data-lens="${l}" class="${this.lens === l ? 'active' : ''}" title="${key}">${t(k)}</button>`).join('')}</div>
       <span class="sep"></span>
       <button id="tb-overlay" class="${this.panel === 'overlay' ? 'active' : ''}">🛰 ${t('tool.overlay')}</button>
+      <button id="tb-mine" class="${this.lens === 'mine' ? 'active' : ''}" title="4">🟩 ${t('tool.myLand')}</button>
       <button id="tb-reset">⌂ ${t('tool.resetView')}</button>
       ${this.infoHidden ? `<button id="tb-info" title="${t('info.show')}">ⓘ ${t('info.show')}</button>` : ''}`;
     el.querySelectorAll<HTMLElement>('[data-tool]').forEach((b) => (b.onclick = () => {
@@ -687,6 +730,7 @@ export class Hud {
     }));
     $('#tb-overlay').onclick = () => { this.panel = 'overlay'; this.renderAll(); };
     $('#tb-reset').onclick = () => this.cb.resetView();
+    $('#tb-mine').onclick = () => this.cb.myLand();
     document.getElementById('tb-info')?.addEventListener('click', () => { this.infoHidden = false; this.openPanel('info'); });
     el.querySelectorAll<HTMLElement>('[data-lens]').forEach((b) => (b.onclick = () => this.cb.setLens(b.dataset.lens as Lens)));
   }

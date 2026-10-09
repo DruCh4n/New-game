@@ -18,8 +18,9 @@
     "test:economy": "tsx scripts/test-economy.ts",
     "test:scenarios": "tsx scripts/test-scenarios.ts",
     "test:people": "tsx scripts/test-people.ts",
+    "test:papers": "tsx scripts/test-papers.ts",
     "sim": "tsx scripts/sim-balance.ts",
-    "test": "npm run test:import && npm run test:world && npm run test:negotiation && npm run test:development && npm run test:economy && npm run test:scenarios && npm run test:people"
+    "test": "npm run test:import && npm run test:world && npm run test:negotiation && npm run test:development && npm run test:economy && npm run test:scenarios && npm run test:people && npm run test:papers"
   },
   "dependencies": {
     "pixi.js": "^8.22.0"

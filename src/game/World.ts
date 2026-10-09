@@ -43,6 +43,11 @@ export class World {
     return this.plotById.get(id);
   }
 
+  /** Characters without land (officials, fixers) who still have faces and chat rooms. */
+  addContact(o: Owner) {
+    this.ownerById.set(o.id, o);
+  }
+
   owner(id: string): Owner | undefined {
     return this.ownerById.get(id);
   }
