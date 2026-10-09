@@ -8,6 +8,7 @@ import type { FlatPoints } from '../shared/mapTypes';
 import type { Plot } from './types';
 import { closeMonth, onBuildingFinished, type Loan, type MonthReport } from './Economy';
 import { buildingType, needsPermit } from './catalog';
+import { checkUnlock, permitFactor } from './District';
 
 export type Speed = 0 | 1 | 2 | 4;
 /** Real seconds per in-game day at 1× speed. */
@@ -62,6 +63,10 @@ export class Game {
   readonly obligations: Obligation[] = [];
   readonly dev: Development;
   readonly loans: Loan[] = [];
+  /** District zoning per land cell (0 none, 1 residential, 2 commercial, 3 green). */
+  readonly zones: Uint8Array;
+  zoneVersion = 0;
+  districtUnlocked = false;
   readonly reports: MonthReport[] = [];
   private acc = 0;
   private speedBeforeTalk: Speed = 1;
@@ -72,6 +77,7 @@ export class Game {
     const r = world.region;
     this.money = Math.round((r.landPerM2 * 6000) / r.priceStep) * r.priceStep;
     this.dev = new Development(world, () => this.money);
+    this.zones = new Uint8Array(world.grid.w * world.grid.h);
     this.dev.onChange = (_e, detail) => {
       if (detail?.kind === 'building') {
         this.toast({ kind: 'good', key: 'toast.built', params: { buildingId: detail.id } });
@@ -112,8 +118,9 @@ export class Game {
   placeBuilding(type: BuildingTypeId, cx: number, cy: number, angle: number): Check {
     const c = this.dev.buildingCheck(type, cx, cy, angle);
     if (!c.ok) return c;
-    const permit = this.permitDays(type);
+    let permit = this.permitDays(type);
     if (permit === null) return { ...c, ok: false, problem: 'permit' };
+    permit = Math.round(permit * permitFactor(this, cx, cy));
     this.addMoney(-c.cost);
     this.dev.placeBuilding(type, cx, cy, angle, c, permit);
     return c;
@@ -186,7 +193,10 @@ export class Game {
       if (this.world.statusOf(id) === 'sold') continue;
       this.world.status.set(id, s);
     }
-    if (s === 'sold') this.dev.onPlotsSold(plotIds);
+    if (s === 'sold') {
+      this.dev.onPlotsSold(plotIds);
+      checkUnlock(this);
+    }
     this.emit('status');
   }
 

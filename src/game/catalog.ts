@@ -1,7 +1,8 @@
 /** Things the player can build. Costs are multiples of the country's build cost per m² of floor area. */
 
 export type BuildingTypeId =
-  | 'house' | 'ruko' | 'apartment' | 'mall' | 'office' | 'school' | 'park' | 'mosque' | 'hall' | 'parking';
+  | 'house' | 'ruko' | 'apartment' | 'mall' | 'office' | 'school' | 'park' | 'mosque' | 'hall' | 'parking'
+  | 'kost' | 'clinic' | 'hotel' | 'market' | 'warehouse' | 'futsal';
 
 export interface BuildingType {
   id: BuildingTypeId;
@@ -42,6 +43,12 @@ export const BUILDING_TYPES: BuildingType[] = [
   { id: 'mosque', icon: '🕌', width: 24, depth: 24, floors: 2, costFactor: 1.3, days: 150, setback: 3, roofed: true, income: 'civic', yield: 0, units: 0, rep: 5 },
   { id: 'hall', icon: '🏛', width: 20, depth: 16, floors: 1, costFactor: 1.0, days: 60, setback: 2, roofed: true, income: 'civic', yield: 0, units: 0, rep: 3 },
   { id: 'parking', icon: '🅿', width: 30, depth: 20, floors: 1, costFactor: 0.15, days: 20, setback: 0, roofed: false, income: 'rent', yield: 0.15, units: 1, rep: 0 },
+  { id: 'kost', icon: '🛏', width: 16, depth: 12, floors: 3, costFactor: 0.9, days: 100, setback: 1, roofed: true, income: 'rent', yield: 0.14, units: 24, rep: 0 },
+  { id: 'clinic', icon: '⚕', width: 22, depth: 16, floors: 2, costFactor: 1.3, days: 120, setback: 2, roofed: true, income: 'civic', yield: 0, units: 0, rep: 4 },
+  { id: 'hotel', icon: '🏨', width: 30, depth: 20, floors: 7, costFactor: 1.5, days: 280, setback: 4, roofed: true, income: 'rent', yield: 0.12, units: 60, rep: 0 },
+  { id: 'market', icon: '🧺', width: 40, depth: 30, floors: 2, costFactor: 0.9, days: 180, setback: 3, roofed: true, income: 'lease', yield: 0.14, units: 60, rep: 2 },
+  { id: 'warehouse', icon: '📦', width: 32, depth: 24, floors: 1, costFactor: 0.6, days: 60, setback: 2, roofed: true, income: 'lease', yield: 0.1, units: 4, rep: 0 },
+  { id: 'futsal', icon: '⚽', width: 22, depth: 36, floors: 1, costFactor: 0.12, days: 30, setback: 1, roofed: false, income: 'civic', yield: 0, units: 0, rep: 2 },
 ];
 
 export function buildingType(id: BuildingTypeId): BuildingType {

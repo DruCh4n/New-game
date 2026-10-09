@@ -5,6 +5,7 @@
 import { buildingType } from './catalog';
 import type { Game, Obligation } from './Game';
 import type { NewBuilding } from './Development';
+import { districtBonus } from './District';
 
 export interface Loan {
   id: string;
@@ -93,7 +94,7 @@ export function demand(game: Game, b: NewBuilding): number {
     if (o === b || o.daysLeft > 0 || buildingType(o.type).income !== 'civic') continue;
     if (Math.hypot(o.cx - b.cx, o.cy - b.cy) < 250) amenities += 0.05;
   }
-  return 0.6 + game.reputation / 250 + Math.min(0.2, amenities);
+  return 0.6 + game.reputation / 250 + Math.min(0.2, amenities) + districtBonus(game, b);
 }
 
 /** Expected monthly income of a finished building at its current occupancy / sales pace. */
@@ -125,7 +126,7 @@ export function onBuildingFinished(game: Game, b: NewBuilding) {
   }
   if (bt.rep) game.addReputation(bt.rep);
   // Promised apartments go into apartment towers, promised shop units into malls and ruko rows.
-  const kind: Obligation['kind'] | null = b.type === 'apartment' ? 'apartment' : b.type === 'mall' || b.type === 'ruko' ? 'shop' : null;
+  const kind: Obligation['kind'] | null = b.type === 'apartment' ? 'apartment' : b.type === 'mall' || b.type === 'ruko' || b.type === 'market' ? 'shop' : null;
   if (!kind) return;
   for (const ob of game.obligations) {
     if (ob.kind !== kind || ob.fulfilled !== undefined || ob.broken) continue;

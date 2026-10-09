@@ -8,6 +8,7 @@ import { Game, type Obligation, type OwnerRecord } from './Game';
 import type { DevSave } from './Development';
 import type { Loan, MonthReport } from './Economy';
 import type { PlotStatus } from './types';
+import { decodeZones, encodeZones } from './District';
 
 export const SAVE_FORMAT = 'kotabaru-save';
 export const SAVE_VERSION = 1;
@@ -32,6 +33,9 @@ export interface SaveData {
   loans: Loan[];
   reports: MonthReport[];
   dev: DevSave;
+  /** Added in Milestone 6 (optional so older saves still load). */
+  districtUnlocked?: boolean;
+  zones?: number[];
 }
 
 export function serialize(game: Game, mapKey: string): SaveData {
@@ -55,6 +59,8 @@ export function serialize(game: Game, mapKey: string): SaveData {
     loans: game.loans,
     reports: game.reports,
     dev: game.dev.serialize(),
+    districtUnlocked: game.districtUnlocked,
+    zones: encodeZones(game.zones),
   };
 }
 
@@ -81,6 +87,8 @@ export function restore(save: SaveData, map: MapData): Game {
   game.loans.push(...save.loans);
   game.reports.push(...save.reports);
   game.dev.restore(save.dev);
+  game.districtUnlocked = !!save.districtUnlocked;
+  if (save.zones) decodeZones(save.zones, game.zones);
   game.speed = 0; // start paused after loading
   return game;
 }

@@ -303,3 +303,15 @@ ul.slots li { background: #232831; border: 1px solid var(--border); border-radiu
 ul.slots li > div { display: flex; flex-direction: column; min-width: 0; }
 ul.slots small { color: var(--muted); }
 ul.slots li > span { display: flex; gap: 4px; flex: none; }
+
+/* ---------- milestone 6: district palette ---------- */
+#palette .district { display: flex; flex-direction: column; gap: 6px; padding: 4px 8px; min-width: 320px; font-size: 13px; }
+#palette .district small { color: var(--muted); }
+#palette .card.zone-1 { border-left: 4px solid #f2c14e; }
+#palette .card.zone-2 { border-left: 4px solid #5f8fd9; }
+#palette .card.zone-3 { border-left: 4px solid #4caf7d; }
+#palette .district-stats { display: flex; flex-direction: column; gap: 4px; min-width: 260px; max-width: 320px; font-size: 12px; padding: 0 6px; }
+#palette .district-stats small { color: var(--muted); line-height: 1.35; }
+#palette .district-stats .row { display: flex; gap: 4px; }
+#palette .district-stats .row button { font-size: 11px; padding: 2px 6px; }
+#topbar button.icon { padding: 4px 8px; }

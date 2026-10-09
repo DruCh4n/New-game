@@ -20,6 +20,8 @@ export class DevLayer {
   private game: Game | null = null;
   private ownedRaster: RasterOverlay | null = null;
   private earthRaster: RasterOverlay | null = null;
+  private zoneRaster: RasterOverlay | null = null;
+  zoneStrong = false;
   private earthCount = -1;
   showOwned = false;
 
@@ -35,10 +37,14 @@ export class DevLayer {
     const grid = g.world.grid;
     this.ownedRaster = new RasterOverlay(grid.w, grid.h, grid.minX, grid.minY);
     this.earthRaster = new RasterOverlay(grid.w, grid.h, grid.minX, grid.minY);
+    this.zoneRaster?.destroy();
+    this.zoneRaster = new RasterOverlay(grid.w, grid.h, grid.minX, grid.minY);
     this.earthCount = -1;
     const parent = this.owned.parent!;
     parent.addChildAt(this.earthRaster.sprite, 0);
     parent.addChildAt(this.ownedRaster.sprite, parent.getChildIndex(this.owned));
+    parent.addChild(this.zoneRaster.sprite);
+    this.redrawZones();
     this.redraw();
   }
 
@@ -108,6 +114,33 @@ export class DevLayer {
     this.top.addChild(demo);
 
     for (const b of dev.buildings) this.top.addChild(drawNewBuilding(b));
+  }
+
+  /** District zones: yellow residential, blue commercial, green open space. */
+  redrawZones() {
+    const g = this.game, r = this.zoneRaster;
+    if (!g || !r) return;
+    const Z = g.zones, gw = g.world.grid.w, n = Z.length;
+    let any = false;
+    for (let i = 0; i < n; i++) if (Z[i]) { any = true; break; }
+    r.sprite.visible = any;
+    if (!any) return;
+    const a = this.zoneStrong ? 0.38 : 0.16, e = this.zoneStrong ? 0.95 : 0.5;
+    const cols = [0, 0xf2c14e, 0x5f8fd9, 0x4caf7d];
+    const fill = cols.map((c) => (c ? rgba(c, a) : 0)), edge = cols.map((c) => (c ? rgba(c, e) : 0));
+    r.update((i) => {
+      const z = Z[i];
+      if (!z) return 0;
+      const x = i % gw;
+      const isEdge = (x + 1 < gw && Z[i + 1] !== z) || (x > 0 && Z[i - 1] !== z) || (i + gw < n && Z[i + gw] !== z) || (i >= gw && Z[i - gw] !== z);
+      return isEdge ? edge[z] : fill[z];
+    });
+  }
+
+  /** Brush outline for zone painting. */
+  ghostBrush(x: number, y: number, radius: number, zone: number) {
+    const c = [0xffffff, 0xf2c14e, 0x5f8fd9, 0x4caf7d][zone];
+    this.ghost.clear().circle(x, y, radius).fill({ color: c, alpha: 0.18 }).circle(x, y, radius).stroke({ width: 0.6, color: c });
   }
 
   clearGhost() {
@@ -261,6 +294,57 @@ function drawNewBuilding(b: NewBuilding): Container {
       rect(-hw + 3, -hd + 3, bt.width - 6, bt.depth - 6).fill(0x3f7f5a);
       g.circle(0, 0, Math.min(hw, hd) * 0.4).fill(0xd9b44a).circle(-1, -1, Math.min(hw, hd) * 0.15).fill(0xf0d27a);
       g.circle(hw - 2, -hd + 2, 1.4).fill(0xd9b44a);
+      break;
+    }
+    case 'kost': {
+      // three-storey boarding house: flat roof with a laundry terrace
+      rect(-hw, -hd, bt.width, bt.depth).fill(0xb6b8b9);
+      rect(-hw + 1, -hd + 1, bt.width * 0.45, bt.depth - 2).fill(0xc4683f);
+      rect(-hw + 1, 0, bt.width * 0.45, hd - 1).fill(shade(0xc4683f, 0.8));
+      for (let x = 2; x < hw - 1; x += 1.6) g.moveTo(x, -hd + 2).lineTo(x, hd - 2);
+      g.stroke({ width: 0.12, color: 0xf2efe6, alpha: 0.9 });
+      break;
+    }
+    case 'clinic': {
+      rect(-hw, -hd, bt.width, bt.depth).fill(0xeeeeea);
+      rect(-hw + 1.2, -hd + 1.2, bt.width - 2.4, bt.depth - 2.4).fill(0xdcdcd6);
+      rect(-1, -4, 2, 8).fill(0xc62828);
+      rect(-4, -1, 8, 2).fill(0xc62828);
+      break;
+    }
+    case 'hotel': {
+      rect(-hw, -hd, bt.width, bt.depth).fill(0xcfc6b5);
+      rect(-hw + 1.4, -hd + 1.4, bt.width - 2.8, bt.depth - 2.8).fill(0xbdb3a0);
+      rect(hw - 11, -hd + 3, 8, 5).fill(0x4fb3d9); // rooftop pool
+      rect(hw - 11, -hd + 3, 8, 5).stroke({ width: 0.3, color: 0xffffff });
+      rect(-hw + 3, -2, 5, 4).fill(0x8f8a80);
+      break;
+    }
+    case 'market': {
+      // traditional market: rows of zinc roofs over the stalls
+      const rows = 5, rh = bt.depth / rows;
+      for (let i = 0; i < rows; i++) {
+        const col = i % 2 ? 0xa5a7a8 : 0x8f9193;
+        rect(-hw, -hd + i * rh, bt.width, rh / 2).fill(col);
+        rect(-hw, -hd + i * rh + rh / 2, bt.width, rh / 2).fill(shade(col, 0.82));
+      }
+      rect(-hw, -hd + bt.depth * 0.45, bt.width, 2).fill(0xc9c4b8);
+      break;
+    }
+    case 'warehouse': {
+      rect(-hw, -hd, bt.width, bt.depth).fill(0xb7bcc0);
+      for (let x = -hw + 2; x < hw; x += 2) g.moveTo(x, -hd).lineTo(x, hd);
+      g.stroke({ width: 0.15, color: 0x8a9aa6, alpha: 0.8 });
+      rect(-hw, -hd, bt.width, 1.2).fill(0x9fb0bd);
+      break;
+    }
+    case 'futsal': {
+      rect(-hw, -hd, bt.width, bt.depth).fill(0x3f8f4f);
+      rect(-hw + 1.5, -hd + 1.5, bt.width - 3, bt.depth - 3).stroke({ width: 0.25, color: 0xffffff });
+      g.moveTo(-hw + 1.5, 0).lineTo(hw - 1.5, 0).stroke({ width: 0.25, color: 0xffffff });
+      g.circle(0, 0, 3).stroke({ width: 0.25, color: 0xffffff });
+      rect(-3, -hd + 1.5, 6, 3).stroke({ width: 0.25, color: 0xffffff });
+      rect(-3, hd - 4.5, 6, 3).stroke({ width: 0.25, color: 0xffffff });
       break;
     }
     case 'parking': {

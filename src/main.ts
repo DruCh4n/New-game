@@ -18,11 +18,17 @@ import { Game } from './game/Game';
 import { acceptCounter, giveGift, leave, listen, makeOffer, pressure, startVisit } from './game/negotiation';
 import { resetDraft } from './ui/negotiationPanel';
 import { DevLayer } from './render/DevLayer';
+import { Terrain } from './render/Terrain';
+import { Life } from './render/Life';
+import { sound } from './audio/Sound';
 import type { Tool } from './ui/hud';
 import type { BuildingTypeId, RoadTypeId } from './game/catalog';
 import type { Check } from './game/Development';
 import { pointInPolygon } from './shared/geometry';
 import type { FlatPoints } from './shared/mapTypes';
+import { ROAD } from './game/LandGrid';
+import { paintZone, type Zone } from './game/District';
+import type { InputInterceptor } from './render/controls';
 import { tk } from './i18n';
 import { isSaveData, restore, serialize, type SaveData } from './game/save';
 import { readSlot, writeSlot } from './game/saveStore';
@@ -46,6 +52,7 @@ async function boot() {
   app.stage.addChild(renderer.world);
   const overlay = new OverlayManager(renderer, camera);
   const devLayer = new DevLayer(renderer.devGround, renderer.devTop);
+  const life = new Life();
 
   // ----- building tools state -----
   let tool: Tool = 'select';
@@ -55,6 +62,27 @@ async function boot() {
   let roadPoints: FlatPoints = [];
   let lastClick = { time: 0, x: 0, y: 0 };
   let lastRefresh = { demolished: 0, removed: 0 };
+  let zoneSel: Zone = 1;
+  let brushR = 8;
+  let paintAt = [0, 0];
+  let zonesDirty = false;
+  let terrain: Terrain | null = null;
+  let terrainVersion = '';
+
+  /** Trees disappear where land is cleared, built on or paved. */
+  function refreshCanopy(g: Game) {
+    const d = g.dev;
+    const v = `${d.demolished.size}|${d.buildings.length}|${d.roads.length}|${d.removedRoads.size}`;
+    if (!terrain || v === terrainVersion) return;
+    terrainVersion = v;
+    const w = g.world, P = w.parcels, f = w.grid.flags;
+    terrain.bakeCanopy((i) => {
+      if (f[i] & ROAD) return true;
+      const k = P[i];
+      const b = k >= 0 ? w.plots[k].buildingId : undefined;
+      return !!b && d.demolished.has(b);
+    });
+  }
 
   let map: MapData | null = null;
   let world: World | null = null;
@@ -77,7 +105,7 @@ async function boot() {
       currentKey = key;
       currentLoader = () => Promise.resolve(m);
       g.on((e) => {
-        if (e === 'status') { plotLayer.redrawLens(); devLayer.redraw(); }
+        if (e === 'status') { plotLayer.redrawLens(); devLayer.redraw(); if (tool === 'zone') hud.renderPalette(); }
         if (e === 'dev') {
           const d = g.dev;
           if (d.demolished.size !== lastRefresh.demolished || d.removedRoads.size !== lastRefresh.removed) {
@@ -85,6 +113,8 @@ async function boot() {
             renderer.refresh(d.demolished, d.removedRoads);
           }
           devLayer.redraw();
+          refreshCanopy(g);
+          life.rebuildLanes();
           if (hud.panel === 'info') hud.refreshPanel();
           hud.renderPalette();
         }
@@ -95,7 +125,14 @@ async function boot() {
         }
         if (e === 'day' && selected && hud.panel === 'info') hud.refreshPanel();
       });
-      g.onToast((tst) => hud.showToast(tst));
+      g.onToast((tst) => {
+        hud.showToast(tst);
+        if (tst.key === 'toast.sold') sound.play('coin');
+        else if (tst.key === 'toast.built' || tst.key === 'toast.civic') sound.play('done');
+        else if (tst.key === 'toast.month') sound.play('month');
+        else if (tst.key === 'toast.placed') sound.play('build');
+        else if (tst.kind === 'bad') sound.play('error');
+      });
       map = m;
       world = w;
       game = g;
@@ -104,6 +141,15 @@ async function boot() {
       renderer.setMap(m);
       renderer.highlights.addChild(plotLayer.container);
       plotLayer.setWorld(w);
+      terrain?.destroy();
+      terrain = new Terrain(w);
+      terrainVersion = '';
+      renderer.terrainSlot.addChild(terrain.ground);
+      renderer.canopySlot.addChild(terrain.canopy);
+      renderer.lifeSlot.addChild(life.below);
+      renderer.devTop.addChild(life.above);
+      life.setGame(g);
+      refreshCanopy(g);
       lastRefresh = { demolished: g.dev.demolished.size, removed: g.dev.removedRoads.size };
       renderer.refresh(g.dev.demolished, g.dev.removedRoads);
       devLayer.setGame(g);
@@ -126,8 +172,36 @@ async function boot() {
     hud.select(p);
   }
 
+  function paint(x: number, y: number) {
+    if (!game) return;
+    if (paintZone(game, x, y, brushR, zoneSel)) { game.zoneVersion++; zonesDirty = true; }
+  }
+
+  /** Routes drags to the overlay alignment or the zone brush; everything else pans. */
+  const interceptor: InputInterceptor = {
+    active: () => overlay.active() || (tool === 'zone' && !!game?.districtUnlocked && !game.session),
+    get button() { return overlay.active() ? undefined : 0; },
+    dragStart: (wx, wy) => {
+      if (overlay.active()) return;
+      paintAt = [wx, wy];
+      paint(wx, wy);
+    },
+    drag: (dx, dy) => {
+      if (overlay.active()) return overlay.drag(dx, dy);
+      paintAt = [paintAt[0] + dx, paintAt[1] + dy];
+      paint(paintAt[0], paintAt[1]);
+      devLayer.ghostBrush(paintAt[0], paintAt[1], brushR, zoneSel);
+    },
+    wheel: (sx, sy, deltaY, shift) => {
+      if (overlay.active()) return overlay.wheel(sx, sy, deltaY, shift);
+      camera.zoomAt(sx, sy, Math.exp(-deltaY * 0.0015));
+    },
+  };
+
   function setTool(next: Tool) {
     tool = next;
+    devLayer.zoneStrong = next === 'zone';
+    devLayer.redrawZones();
     roadPoints = [];
     devLayer.clearGhost();
     devLayer.showOwned = next !== 'select';
@@ -181,6 +255,11 @@ async function boot() {
     if (!game || tool === 'select') return;
     const [wx, wy] = camera.screenToWorld(sx, sy);
     const dev = game.dev;
+    if (tool === 'zone') {
+      hud.showText(null, 0, 0);
+      if (game.districtUnlocked) devLayer.ghostBrush(wx, wy, brushR, zoneSel);
+      return;
+    }
     if (tool === 'build') {
       const cx = Math.round(wx * 2) / 2, cy = Math.round(wy * 2) / 2;
       const a = buildAngle(cx, cy);
@@ -213,6 +292,7 @@ async function boot() {
   function toolClick(sx: number, sy: number): boolean {
     if (!game || tool === 'select') return false;
     const [wx, wy] = camera.screenToWorld(sx, sy);
+    if (tool === 'zone') { paint(wx, wy); return true; }
     if (tool === 'build') {
       const cx = Math.round(wx * 2) / 2, cy = Math.round(wy * 2) / 2;
       const c = game.placeBuilding(buildType, cx, cy, buildAngle(cx, cy));
@@ -229,7 +309,7 @@ async function boot() {
       }
     } else if (tool === 'demolish') {
       const target = demolishTarget(wx, wy);
-      if (target?.ok && target.act) target.act();
+      if (target?.ok && target.act) { target.act(); sound.play('demolish'); }
       else if (target) game.toast({ kind: 'bad', key: 'toast.problem', params: { problem: target.label } });
     }
     previewAt(sx, sy);
@@ -270,9 +350,10 @@ async function boot() {
       setTool,
       setBuildType: (b) => { buildType = b; rotation = 0; hud.buildType = b; hud.renderPalette(); },
       setRoadType: (r) => { roadTypeId = r; hud.roadType = r; hud.renderPalette(); },
-      demolishPlot: (id) => { const p = world?.plot(id); if (p && game) game.demolish(p); },
+      demolishPlot: (id) => { const p = world?.plot(id); if (p && game && game.demolish(p).ok) sound.play('demolish'); },
       removeNewBuilding: (id) => { game?.dev.removeBuilding(id); hud.select(null); },
       addMoney: () => game?.addMoney(game.world.region.landPerM2 * 15000),
+      setZone: (z, b) => { zoneSel = z; brushR = b; },
       gameMenu: {
         save: (slot) => {
           if (!game) return;
@@ -337,6 +418,7 @@ async function boot() {
   /** Runs a negotiation action on the current conversation and refreshes the panel. */
   function talk(fn: (g: Game, s: NonNullable<Game['session']>) => unknown) {
     if (!game?.session) return;
+    sound.play('talk');
     fn(game, game.session);
     hud.refreshPanel();
     hud.updateStats();
@@ -374,7 +456,7 @@ async function boot() {
       }
       select(pickAt(sx, sy));
     },
-    interceptor: overlay,
+    interceptor,
   });
   host.addEventListener('pointerleave', () => {
     cursor = null;
@@ -396,6 +478,7 @@ async function boot() {
       if (k === 'x') setTool('demolish');
       if (k === 'n') setTool('road');
       if (k === 'b') setTool('build');
+      if (k === 'z') setTool('zone');
       if (tool === 'build' && (k === 'r' || k === 'q' || k === 'e')) {
         rotation += k === 'r' ? Math.PI / 2 : k === 'q' ? -Math.PI / 12 : Math.PI / 12;
         if (cursor) previewAt(cursor.sx, cursor.sy);
@@ -413,6 +496,7 @@ async function boot() {
   });
 
   let statusTimer = 0;
+  let zoneTimer = 0;
   app.ticker.add((ticker) => {
     const dt = Math.min(ticker.deltaMS / 1000, 0.1);
     camera.resize(app.screen.width, app.screen.height);
@@ -421,6 +505,14 @@ async function boot() {
     game?.tick(dt);
     camera.apply(renderer.world);
     plotLayer.update(camera.zoom);
+    life.update(dt, camera.zoom, game?.speed ?? 0);
+    zoneTimer += dt;
+    if (zonesDirty && zoneTimer > 0.08) {
+      zonesDirty = false;
+      zoneTimer = 0;
+      devLayer.redrawZones();
+      hud.renderPalette();
+    }
 
     statusTimer += dt;
     if (statusTimer > 0.15) {
@@ -434,6 +526,16 @@ async function boot() {
       hud.updateStatus(c, camera.zoom, ticker.FPS);
     }
   });
+
+  // sound starts with the first interaction; buttons click
+  window.addEventListener('pointerdown', () => sound.unlock(), { capture: true });
+  document.addEventListener('click', (e) => { if ((e.target as HTMLElement).closest('button')) sound.play('click'); });
+  try {
+    const v = JSON.parse(localStorage.getItem('kotabaru.visuals') ?? '{}');
+    if (typeof v.traffic === 'boolean') life.showTraffic = v.traffic;
+    if (typeof v.clouds === 'boolean') life.showClouds = v.clouds;
+  } catch { /* ignore */ }
+  hud.life = life;
 
   if (import.meta.env.DEV) (window as unknown as Record<string, unknown>).__game = { app, camera, renderer, get world() { return world; }, get game() { return game; }, get selected() { return selected; } };
 

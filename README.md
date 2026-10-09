@@ -3,9 +3,9 @@
 An offline, top-down city-redevelopment game. You play a property developer who buys plots from NPC
 owners in a real neighborhood (imported from OpenStreetMap), then demolishes, lays roads and builds.
 
-**Status: Milestone 5**: map (M1), plots and owners (M2), negotiation (M3), redevelopment (M4),
-and the economy: monthly income, costs, bank loans, building permits, promises to former owners,
-and save/load.
+**Status: Milestone 6** (all milestones done): map, plots and owners, negotiation, redevelopment,
+economy and save/load, plus a lifelike satellite-style look, traffic, sound, 16 building types and
+district planning.
 
 ## Quick start
 
@@ -62,6 +62,7 @@ Time pauses while you talk. Moods recover slowly as days pass.
 | Demolish | `X` | Demolish a building on land you own (costs money, takes days), remove your new roads or buildings, or remove an old gang/footpath once you own the land on both sides |
 | Road | `N` | Click points (snaps to existing roads and a 1 m grid), double-click or `Enter` to build. Gang 4 m, street 7 m, avenue 12 m. Only over your land or existing roads. |
 | Build | `B` | Pick a building in the palette; it aligns itself to the nearest road. `R` rotates 90°, `Q`/`E` 15°. |
+| District | `Z` | Paint zones on your land once district planning is unlocked |
 
 Placement rules: every square metre of the footprint must be land you own (not road, water or a
 standing building), larger buildings need a margin of your own land around them (shown as a thin
@@ -85,6 +86,26 @@ Click the money in the top bar for the **Finances** panel. Every month (on the 1
   and are refused below reputation 25. Civic buildings (school, mosque, park, hall) raise reputation.
 - **Promises**: a promised apartment is handed over when your next apartment tower opens; a promised
   shop unit when a mall or ruko row opens. Promises not kept within two years are broken (reputation −5).
+
+### Looks, life and sound
+
+- The ground is baked per map into a texture: tiled or paved yards and trodden earth around houses,
+  grass and scrub further out, dense vegetation, rice fields at different growth stages with planting
+  rows, and a tree canopy of thousands of shaded trees in natural clusters (cleared when you demolish,
+  pave or build). Roofs are weathered and some carry water tanks or solar heaters.
+- Cars and many motorbikes drive on the left along the roads (including the ones you build), cloud
+  shadows drift over the map, cranes swing over building sites and demolitions raise dust.
+- Sound effects and ambience (birds, distant traffic) are synthesised in the browser: no audio files.
+  Mute with 🔊 in the top bar; volume, ambience, traffic and clouds are in **☰ Game → Settings**.
+
+### District planning (new-city mode)
+
+Once you own **2 ha of connected land** (streets running between your plots count as connecting), the
+**District** tool (`Z`) unlocks. Paint residential, commercial and green zones on your land with
+a brush (left-drag; right-drag still pans). Buildings that match their zone get more demand (homes,
+kost, hotels and apartments in residential; shops, markets and malls in commercial; anything civic
+anywhere), a balanced plan (about 50/30/20) lifts demand for everything inside it, and permits in
+zoned land come faster.
 
 ### Saving
 
@@ -192,6 +213,10 @@ src/
     catalog.ts           building and road types (size, floors, cost, build time, income model)
     Economy.ts           monthly close, income, loans, credit, promises
     save.ts, saveStore.ts  save/load (JSON) and browser save slots
+    District.ts          district zoning, unlock rule, balance and demand effects
+  render/Terrain.ts      baked ground texture and tree canopy
+  render/Life.ts         traffic, cloud shadows, cranes, dust
+  audio/Sound.ts         synthesised sound effects and ambience
 ```
 
 ### Data model
@@ -229,4 +254,4 @@ land area × country price × location factor (main road ×1.7, street ×1.0, al
 3. ✅ Negotiation: offers, counters, refusals, deal options, reputation, neighbor influence, logs
 4. ✅ Demolish, road drawing, placing buildings on owned land
 5. ✅ Economy, clock, income, loans, save/load
-6. Polish: sound, animation, more building types, district/new-city mode
+6. ✅ Polish: sound, animation, more building types, district/new-city mode, lifelike terrain

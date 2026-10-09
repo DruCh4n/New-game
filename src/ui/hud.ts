@@ -16,8 +16,11 @@ import type { NewBuilding } from '../game/Development';
 import { demand, monthlyIncome, unitPrice } from '../game/Economy';
 import { renderFinance } from './financePanel';
 import { renderGameMenu, type GameMenuActions } from './gamePanel';
+import { sound } from '../audio/Sound';
+import type { Life } from '../render/Life';
+import { DISTRICT_MIN_AREA, districtStats, largestOwnedArea, type Zone } from '../game/District';
 
-export type Tool = 'select' | 'demolish' | 'road' | 'build';
+export type Tool = 'select' | 'demolish' | 'road' | 'build' | 'zone';
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T;
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
@@ -41,6 +44,7 @@ export interface HudCallbacks {
   removeNewBuilding(id: string): void;
   addMoney(): void;
   gameMenu: GameMenuActions;
+  setZone(z: Zone, brush: number): void;
   negotiation: NegotiationActions;
 }
 
@@ -61,6 +65,9 @@ export class Hud {
   buildType: BuildingTypeId = 'house';
   roadType: RoadTypeId = 'street';
   private selectedNew: NewBuilding | null = null;
+  life: Life | null = null;
+  zone: Zone = 1;
+  brush = 8;
   private selected: Plot | null = null;
   private tooltipPlot: Plot | null = null;
 
@@ -124,6 +131,34 @@ export class Hud {
     const el = $('#palette');
     const g = this.game;
     const hint = `<div class="toolhint">${tk(`tool.hint.${this.tool}`)}</div>`;
+    if (g && this.tool === 'zone') {
+      el.hidden = false;
+      if (!g.districtUnlocked) {
+        const area = largestOwnedArea(g);
+        const pct = Math.min(100, Math.round((area / DISTRICT_MIN_AREA) * 100));
+        el.innerHTML = `<div class="district locked"><b>🔒 ${t('dist.locked', { need: (DISTRICT_MIN_AREA / 10000).toFixed(0) })}</b>
+          <div class="progress"><i style="width:${pct}%"></i></div>
+          <small>${t('dist.progress', { have: area.toLocaleString(), need: DISTRICT_MIN_AREA.toLocaleString() })}</small></div>`;
+        return;
+      }
+      const st = districtStats(g);
+      const zones: [Zone, string, string][] = [[1, '🏘', 'dist.res'], [2, '🏬', 'dist.com'], [3, '🌳', 'dist.green'], [0, '⌫', 'dist.erase']];
+      const share = (z: number) => (st.zoned ? Math.round((st.area[z] / st.zoned) * 100) : 0);
+      el.innerHTML = `<div class="cards">
+          ${zones.map(([z, icon, k]) => `<button class="card zone-${z} ${this.zone === z ? 'active' : ''}" data-zone="${z}"><span class="icon">${icon}</span><b>${tk(k)}</b>
+            ${z ? `<small>${(st.area[z] / 10000).toFixed(2)} ha · ${share(z)}%</small>` : '<small>&nbsp;</small>'}</button>`).join('')}
+          <div class="district-stats">
+            <b>${t('dist.balance')}: ${Math.round(st.balance * 100)}%</b>
+            <div class="progress"><i style="width:${Math.round(st.balance * 100)}%"></i></div>
+            <small>${t('dist.target')}</small>
+            <div class="row">${[5, 8, 14].map((b) => `<button data-brush="${b}" class="${this.brush === b ? 'active' : ''}">${t('dist.brush', { m: b * 2 })}</button>`).join('')}</div>
+          </div>
+        </div>
+        <div class="toolhint">${t('tool.hint.zone')}</div>`;
+      el.querySelectorAll<HTMLElement>('[data-zone]').forEach((b) => (b.onclick = () => { this.zone = parseInt(b.dataset.zone!, 10) as Zone; this.cb.setZone(this.zone, this.brush); this.renderPalette(); }));
+      el.querySelectorAll<HTMLElement>('[data-brush]').forEach((b) => (b.onclick = () => { this.brush = parseInt(b.dataset.brush!, 10); this.cb.setZone(this.zone, this.brush); this.renderPalette(); }));
+      return;
+    }
     if (!g || this.tool === 'select' || this.tool === 'demolish') {
       el.innerHTML = this.tool === 'select' ? '' : hint;
       el.hidden = this.tool === 'select';
@@ -259,6 +294,7 @@ export class Hud {
       <span class="spacer"></span>
       <div id="stats"></div>
       <span class="spacer"></span>
+      <button id="mute" class="icon" title="${t('set.sound')}" aria-label="${t('set.sound')}">${sound.muted ? '🔇' : '🔊'}</button>
       <button id="game-menu">☰ ${t('top.game')}</button>
       <label>${t('top.language')}
         <select id="lang-select">${LANGS.map((l) => `<option value="${l.code}" ${l.code === getLang() ? 'selected' : ''}>${l.label}</option>`).join('')}</select>
@@ -272,6 +308,7 @@ export class Hud {
     };
     $<HTMLSelectElement>('#lang-select').onchange = (e) => setLang((e.target as HTMLSelectElement).value as never);
     $('#game-menu').onclick = () => this.openPanel(this.panel === 'game' ? 'info' : 'game');
+    $('#mute').onclick = () => { sound.unlock(); sound.setMuted(!sound.muted); this.renderTopBar(); };
     this.updateStats();
   }
 
@@ -281,7 +318,12 @@ export class Hud {
     el.classList.toggle('plot', this.panel === 'info' && !!this.selected);
     el.classList.toggle('talk', this.panel === 'talk');
     if (this.panel === 'overlay') return this.renderOverlayPanel(el);
-    if (this.panel === 'game') return renderGameMenu(el, this.game, this.cb.gameMenu);
+    if (this.panel === 'game') {
+      renderGameMenu(el, this.game, this.cb.gameMenu);
+      el.insertAdjacentHTML('beforeend', this.settingsHtml());
+      this.wireSettings(el);
+      return;
+    }
     if (this.panel === 'finance' && this.game) {
       renderFinance(el, this.game, () => { this.updateStats(); this.renderSidePanel(); });
       $('#panel-close').onclick = () => this.openPanel('info');
@@ -468,6 +510,28 @@ export class Hud {
       ${check.block === 'cooldown' || check.block === 'angry' ? `<p class="hint center">${t('panel.visitBlocked', { days: check.days ?? 1 })}</p>` : ''}`;
   }
 
+  private settingsHtml(): string {
+    const l = this.life;
+    return `<h3>${t('set.title')}</h3>
+      <div class="row"><span>${t('set.volume')}</span><input id="set-vol" type="range" min="0" max="1" step="0.05" value="${sound.volume}" /></div>
+      <label class="check"><input id="set-mute" type="checkbox" ${sound.muted ? '' : 'checked'}/> ${t('set.sound')}</label>
+      <label class="check"><input id="set-amb" type="checkbox" ${sound.ambient ? 'checked' : ''}/> ${t('set.ambient')}</label>
+      <label class="check"><input id="set-traffic" type="checkbox" ${l?.showTraffic ? 'checked' : ''}/> ${t('set.traffic')}</label>
+      <label class="check"><input id="set-clouds" type="checkbox" ${l?.showClouds ? 'checked' : ''}/> ${t('set.clouds')}</label>`;
+  }
+
+  private wireSettings(el: HTMLElement) {
+    const q = (id: string) => el.querySelector<HTMLInputElement>(id)!;
+    const saveVisuals = () => {
+      try { localStorage.setItem('kotabaru.visuals', JSON.stringify({ traffic: this.life?.showTraffic, clouds: this.life?.showClouds })); } catch { /* ignore */ }
+    };
+    q('#set-vol').oninput = () => { sound.unlock(); sound.setVolume(parseFloat(q('#set-vol').value)); };
+    q('#set-mute').onchange = () => { sound.unlock(); sound.setMuted(!q('#set-mute').checked); this.renderTopBar(); };
+    q('#set-amb').onchange = () => { sound.unlock(); sound.setAmbient(q('#set-amb').checked); };
+    q('#set-traffic').onchange = () => { if (this.life) this.life.showTraffic = q('#set-traffic').checked; saveVisuals(); };
+    q('#set-clouds').onchange = () => { if (this.life) this.life.showClouds = q('#set-clouds').checked; saveVisuals(); };
+  }
+
   /** Distinct neighbouring owners with their relationship to this owner. */
   private neighborList(p: Plot, o: Owner, w: World): string {
     const seen = new Set<string>([o.id]);
@@ -538,6 +602,7 @@ export class Hud {
     const el = $('#toolbar');
     const tools: [Tool, string, StringKey, string][] = [
       ['select', '🖱', 'tool.select', 'V'], ['demolish', '⛏', 'tool.demolish', 'X'], ['road', '🛣', 'tool.road', 'N'], ['build', '🏗', 'tool.build', 'B'],
+      ['zone', '🗺', 'tool.zone', 'Z'],
     ];
     const lenses: [Lens, StringKey, string][] = [['normal', 'lens.normal', '1'], ['plots', 'lens.plots', '2'], ['value', 'lens.value', '3']];
     el.innerHTML = `

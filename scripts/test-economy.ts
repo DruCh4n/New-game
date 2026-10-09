@@ -118,3 +118,32 @@ function place(g: Game, type: BuildingTypeId, near: { cx: number; cy: number }) 
 }
 
 console.log('✔ economy test passed');
+
+// 6. District mode: unlocks with 2 ha of connected land; zones only on owned land; matching zones add demand; saved.
+{
+  const { DISTRICT_MIN_AREA, largestOwnedArea, paintZone, districtStats, districtBonus } = await import('../src/game/District.ts');
+  const g = new Game(new World(map));
+  g.money = 1e15;
+  const w = g.world;
+  const centre = w.plots.find((p) => p.category === 'house' && Math.hypot(p.cx - 100, p.cy - 120) < 80)!;
+  assert.equal(g.districtUnlocked, false);
+  const ring = w.plots.filter((p) => Math.hypot(p.cx - centre.cx, p.cy - centre.cy) < 110);
+  g.setStatus(ring.map((p) => p.id), 'sold');
+  assert.ok(largestOwnedArea(g) >= DISTRICT_MIN_AREA, `owned ${largestOwnedArea(g)} m²`);
+  assert.ok(g.districtUnlocked, 'unlocked');
+  const far = w.plots.find((p) => !g.ownsPlot(p.id) && p.kind === 'building')!;
+  assert.equal(paintZone(g, far.cx, far.cy, 5, 1), 0, 'cannot zone land you do not own');
+  assert.ok(paintZone(g, centre.cx, centre.cy, 40, 1) > 1000);
+  assert.ok(paintZone(g, centre.cx + 60, centre.cy, 25, 2) > 500);
+  assert.ok(paintZone(g, centre.cx - 60, centre.cy, 20, 3) > 300);
+  const st = districtStats(g);
+  assert.ok(st.balance > 0, `balance ${st.balance}`);
+  const fake = { cx: centre.cx, cy: centre.cy, type: 'house' } as never;
+  const fakeShop = { cx: centre.cx, cy: centre.cy, type: 'mall' } as never;
+  assert.ok(districtBonus(g, fake) > districtBonus(g, fakeShop), 'houses fit residential zones better than malls');
+  const g2 = restore(JSON.parse(JSON.stringify(serialize(g, 'sample-kampung'))), map);
+  assert.ok(g2.districtUnlocked);
+  assert.deepEqual(g2.zones, g.zones, 'zones saved');
+  console.log(`district: ${(largestOwnedArea(g) / 10000).toFixed(1)} ha, balance ${st.balance}`);
+}
+console.log('✔ district test passed');

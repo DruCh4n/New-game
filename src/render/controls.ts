@@ -3,6 +3,8 @@ import type { Camera } from './Camera';
 /** Lets another tool (e.g. overlay alignment) take over drag/wheel input. */
 export interface InputInterceptor {
   active(): boolean;
+  /** Only intercept drags with this mouse button (others still pan). */
+  button?: number;
   dragStart?(wx: number, wy: number): void;
   drag(dwx: number, dwy: number): void;
   wheel?(sx: number, sy: number, deltaY: number, shift: boolean): void;
@@ -36,7 +38,8 @@ export function attachCameraControls(el: HTMLElement, cam: Camera, opts: Control
     lastT = performance.now();
     vx = vy = 0;
     cam.stopInertia();
-    intercepted = !!opts.interceptor?.active();
+    const ic = opts.interceptor;
+    intercepted = !!ic?.active() && (ic.button === undefined || ic.button === e.button);
     if (intercepted) opts.interceptor!.dragStart?.(...cam.screenToWorld(lastX, lastY));
     el.classList.add('dragging');
   });

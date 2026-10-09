@@ -2,7 +2,7 @@ import { Container, Graphics } from 'pixi.js';
 import type { FlatPoints, MapArea, MapData, MapRoad } from '../shared/mapTypes';
 import { centroid } from '../shared/geometry';
 import { hashString } from '../util/random';
-import { COLORS, GREEN_COLORS, LANDUSE_COLORS, ROAD_STYLES, roofColor, shade } from './styles';
+import { COLORS, ROAD_STYLES, roofColor, shade } from './styles';
 
 /**
  * Draws the static map into a world-space container (1 unit = 1 meter).
@@ -21,6 +21,11 @@ export class MapRenderer {
   readonly devTop = new Container();
 
   private layers: Graphics[] = [];
+  /** Baked ground texture (yards, grass, fields) and tree canopy, filled in by Terrain. */
+  readonly terrainSlot = new Container();
+  readonly canopySlot = new Container();
+  /** Moving traffic: above roads, below buildings and trees. */
+  readonly lifeSlot = new Container();
   private roadsSlot = new Container();
   private buildingsSlot = new Container();
   private map: MapData | null = null;
@@ -44,15 +49,18 @@ export class MapRenderer {
     };
 
     add(this.drawGround(map));
-    add(this.drawAreas(map.landuse, (k) => LANDUSE_COLORS[k] ?? 0xd3d0c4, 1));
-    add(this.drawAreas(map.greens, (k) => GREEN_COLORS[k] ?? GREEN_COLORS.grass, 1, true));
+    this.terrainSlot.removeChildren();
+    this.canopySlot.removeChildren();
+    this.world.addChild(this.terrainSlot);
+    add(this.drawPitchLines(map.greens));
     this.world.addChild(this.overlayBelow);
     add(this.drawWater(map));
     this.world.addChild(this.roadsSlot);
     this.world.addChild(this.devGround);
+    this.world.addChild(this.lifeSlot);
     this.world.addChild(this.buildingsSlot);
     this.refresh(new Set(), new Set());
-    add(this.drawTrees(map.trees));
+    this.world.addChild(this.canopySlot);
     this.world.addChild(this.devTop);
     add(this.drawOutOfBounds(map));
     this.world.addChild(this.highlights);
@@ -76,18 +84,10 @@ export class MapRenderer {
     return new Graphics().rect(b.minX - m, b.minY - m, b.maxX - b.minX + 2 * m, b.maxY - b.minY + 2 * m).fill(COLORS.land);
   }
 
-  private drawAreas(areas: MapArea[], color: (kind: string) => number, alpha: number, outline = false): Graphics {
+  /** White markings on sports pitches (the grass itself is in the terrain texture). */
+  private drawPitchLines(areas: MapArea[]): Graphics {
     const g = new Graphics();
-    // Larger areas first so small parks/pitches drawn later stay visible.
-    const sorted = [...areas].sort((a, b) => approxArea(b.poly) - approxArea(a.poly));
-    for (const a of sorted) {
-      const c = color(a.kind);
-      g.poly(a.poly).fill({ color: c, alpha });
-      if (a.holes) for (const h of a.holes) g.poly(h).cut();
-      if (outline) g.poly(a.poly).stroke({ width: 0.6, color: shade(c, 0.85), alpha: 0.8 });
-      if (a.kind === 'pitch') g.poly(a.poly).stroke({ width: 0.4, color: 0xffffff, alpha: 0.7 });
-      if (a.kind === 'paddy') drawPaddyLines(g, a.poly);
-    }
+    for (const a of areas) if (a.kind === 'pitch') g.poly(a.poly).stroke({ width: 0.4, color: 0xffffff, alpha: 0.75 });
     return g;
   }
 
@@ -160,8 +160,23 @@ export class MapRenderer {
     shadows.fill({ color: COLORS.shadow, alpha: 0.22 });
 
     const domes: [number, number, number][] = [];
+    const ridges: number[] = [];
+    const tanks: number[][] = [], solar: number[][] = [], stains: number[][] = [];
     for (const b of map.buildings) {
-      const c = roofColor(b);
+      const h = hashString(b.id);
+      // weathering: each roof a little lighter or darker than its neighbours
+      const c = shade(roofColor(b), [0.88, 0.95, 1, 1.06][(h >>> 3) % 4]);
+      if (b.poly.length === 8) {
+        const q = quad(b.poly);
+        if (q.len > 4) {
+          ridges.push(q.cx - q.ux * q.len * 0.5, q.cy - q.uy * q.len * 0.5, q.cx + q.ux * q.len * 0.5, q.cy + q.uy * q.len * 0.5);
+          const roll = (h >>> 8) % 100;
+          const at = (u: number, v: number, w: number, d: number) => rectAt(q, u, v, w, d);
+          if (roll < 14) tanks.push(at(q.len * 0.3, -q.wid * 0.25, 1.3, 1.3));
+          else if (roll < 21) solar.push(at(-q.len * 0.2, -q.wid * 0.25, 2, 1.1));
+          else if (roll < 36) stains.push(at(((h >>> 12) % 7 - 3) * q.len * 0.08, ((h >>> 15) % 2 ? 1 : -1) * q.wid * 0.22, q.len * 0.35, q.wid * 0.3));
+        }
+      }
       const halves = b.poly.length === 8 ? splitGable(b.poly) : null;
       if (halves) {
         push(c, halves[0]);
@@ -178,22 +193,18 @@ export class MapRenderer {
       for (const p of polys) roofs.poly(p);
       roofs.fill(c);
     }
+    for (const p of stains) roofs.poly(p);
+    roofs.fill({ color: 0x3a2a1e, alpha: 0.22 });
+    for (let i = 0; i < ridges.length; i += 4) roofs.moveTo(ridges[i], ridges[i + 1]).lineTo(ridges[i + 2], ridges[i + 3]);
+    roofs.stroke({ width: 0.25, color: 0x000000, alpha: 0.22 });
     for (const b of map.buildings) roofs.poly(b.poly);
     roofs.stroke({ width: 0.3, color: 0x000000, alpha: 0.28 });
+    for (const p of tanks) roofs.poly(p);
+    roofs.fill(0xe9edf0).stroke({ width: 0.15, color: 0x7d858c });
+    for (const p of solar) roofs.poly(p);
+    roofs.fill(0x2d3f5c).stroke({ width: 0.12, color: 0xb9c4d0 });
     for (const [x, y, r] of domes) roofs.circle(x, y, r).fill(0xd9b44a).circle(x - r * 0.25, y - r * 0.25, r * 0.4).fill(0xf0d27a);
     return [shadows, roofs];
-  }
-
-  private drawTrees(trees: FlatPoints): Graphics {
-    const g = new Graphics();
-    const radius = (i: number) => 1.8 + (hashString(String(i)) % 100) / 60;
-    for (let i = 0; i < trees.length; i += 2) g.circle(trees[i] + 0.8, trees[i + 1] + 1, radius(i));
-    g.fill({ color: 0x000000, alpha: 0.18 });
-    for (let i = 0; i < trees.length; i += 2) g.circle(trees[i], trees[i + 1], radius(i));
-    g.fill(COLORS.treeDark);
-    for (let i = 0; i < trees.length; i += 2) g.circle(trees[i] - 0.4, trees[i + 1] - 0.5, radius(i) * 0.6);
-    g.fill(COLORS.treeLight);
-    return g;
   }
 
   /** Dims everything outside the playable bbox and outlines it. */
@@ -263,23 +274,24 @@ function splitGable(p: FlatPoints): [FlatPoints, FlatPoints] | null {
   return ax + ay <= bx + by ? [a, b] : [b, a];
 }
 
-/** Thin parallel lines across paddy fields (dykes between rice terraces). */
-function drawPaddyLines(g: Graphics, poly: FlatPoints) {
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-  for (let i = 0; i < poly.length; i += 2) {
-    minX = Math.min(minX, poly[i]); maxX = Math.max(maxX, poly[i]);
-    minY = Math.min(minY, poly[i + 1]); maxY = Math.max(maxY, poly[i + 1]);
-  }
-  // Clip each horizontal scanline to the polygon (even-odd crossings).
-  for (let y = minY + 6; y < maxY; y += 12) {
-    const xs: number[] = [];
-    for (let i = 0; i < poly.length; i += 2) {
-      const j = (i + 2) % poly.length;
-      const ya = poly[i + 1], yb = poly[j + 1];
-      if ((ya > y) !== (yb > y)) xs.push(poly[i] + ((y - ya) / (yb - ya)) * (poly[j] - poly[i]));
-    }
-    xs.sort((a, b) => a - b);
-    for (let k = 0; k + 1 < xs.length; k += 2) g.moveTo(xs[k], y).lineTo(xs[k + 1], y);
-  }
-  g.stroke({ width: 0.35, color: 0x8fae68, alpha: 0.8 });
+interface Quad { cx: number; cy: number; ux: number; uy: number; len: number; wid: number }
+
+/** Centre, long axis and size of a 4-corner footprint. */
+function quad(p: FlatPoints): Quad {
+  const [x0, y0, x1, y1, x2, y2, x3, y3] = p;
+  const e0 = Math.hypot(x1 - x0, y1 - y0), e1 = Math.hypot(x2 - x1, y2 - y1);
+  const cx = (x0 + x1 + x2 + x3) / 4, cy = (y0 + y1 + y2 + y3) / 4;
+  if (e0 >= e1) return { cx, cy, ux: (x1 - x0) / e0, uy: (y1 - y0) / e0, len: e0, wid: e1 };
+  return { cx, cy, ux: (x2 - x1) / e1, uy: (y2 - y1) / e1, len: e1, wid: e0 };
+}
+
+/** A small rectangle on a roof, in the roof's own axes (u along the ridge, v across). */
+function rectAt(q: Quad, u: number, v: number, w: number, d: number): FlatPoints {
+  const nx = -q.uy, ny = q.ux;
+  const cx = q.cx + q.ux * u + nx * v, cy = q.cy + q.uy * u + ny * v;
+  const hw = w / 2, hd = d / 2;
+  return [
+    cx - q.ux * hw - nx * hd, cy - q.uy * hw - ny * hd, cx + q.ux * hw - nx * hd, cy + q.uy * hw - ny * hd,
+    cx + q.ux * hw + nx * hd, cy + q.uy * hw + ny * hd, cx - q.ux * hw + nx * hd, cy - q.uy * hw + ny * hd,
+  ];
 }
