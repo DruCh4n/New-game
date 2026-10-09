@@ -200,6 +200,6 @@ land area × country price × location factor (main road ×1.7, street ×1.0, al
 1. ✅ Setup, OSM import, map rendering with pan/zoom
 2. ✅ Plots and owners: click a plot → owner info panel
 3. ✅ Negotiation: offers, counters, refusals, deal options, reputation, neighbor influence, logs
-4. Demolish, road drawing, placing buildings on owned land
+4. ✅ Demolish, road drawing, placing buildings on owned land
 5. Economy, clock, income, loans, save/load
 6. Polish: sound, animation, more building types, district/new-city mode
