@@ -51,7 +51,7 @@ function makePerson(id: string, ctx: Ctx): Owner {
   const holdoutChance = 0.03 + (attachment > 80 ? 0.12 : 0) + (age > 72 ? 0.05 : 0) - (finances === 'needs_money' ? 0.02 : 0);
   const holdout = rng.chance(holdoutChance);
   const minFactor = round2(
-    0.95 + greed * 0.006 + attachment * 0.007 + (finances === 'wealthy' ? 0.25 : finances === 'needs_money' ? -0.15 : 0) + rng.range(-0.1, 0.1),
+    0.85 + greed * 0.004 + attachment * 0.005 + (finances === 'wealthy' ? 0.15 : finances === 'needs_money' ? -0.15 : 0) + rng.range(-0.08, 0.08),
   );
 
   const owner: Owner = {

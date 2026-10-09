@@ -13,7 +13,8 @@
     "sample-map": "tsx scripts/generate-sample.ts",
     "test:import": "tsx scripts/test-import.ts",
     "test:world": "tsx scripts/test-world.ts",
-    "test": "npm run test:import && npm run test:world"
+    "test:negotiation": "tsx scripts/test-negotiation.ts",
+    "test": "npm run test:import && npm run test:world && npm run test:negotiation"
   },
   "dependencies": {
     "pixi.js": "^8.22.0"

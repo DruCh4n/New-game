@@ -3,8 +3,9 @@
 An offline, top-down city-redevelopment game. You play a property developer who buys plots from NPC
 owners in a real neighborhood (imported from OpenStreetMap), then demolishes, lays roads and builds.
 
-**Status: Milestone 2** — map rendering with pan/zoom (M1) plus plots and owners: every building
-and patch of empty land is a plot with a generated owner, value and neighbours. Click to inspect.
+**Status: Milestone 3** — map (M1), plots and owners (M2), and negotiation: visit owners, listen to
+their stories, make offers with deal options, handle counter-offers, refusals and holdouts, and
+watch your reputation and the neighbourhood react.
 
 ## Quick start
 
@@ -27,6 +28,31 @@ place) so you can play without importing anything. Regenerate it with `npm run s
 | Reset view | `Home` key or the **Reset view** button |
 | Inspect a plot | Click it (hover shows owner and value) · `Esc` closes |
 | Switch view | `1` normal · `2` plot status · `3` land value |
+
+| Pause / resume time | `Space` or the speed buttons in the top bar |
+
+### Negotiating
+
+Click a plot → **Visit owner**. In the conversation:
+
+- **Offer**: drag the slider (percent of market value) and tick deal options. Moving costs and
+  relocation help are paid now; a free apartment or a shop unit are promises you'll fulfil when
+  you build. Each owner values the options differently: a warung owner loves a shop unit, a
+  grandmother who can't climb stairs doesn't want an apartment.
+- **Listen**: hear one of their stories and learn what they care about most (or that they will never sell).
+- **Gift**: small cost, better mood, a bit more patience.
+- **Pressure**: may knock their price down, especially for owners who need money, but always costs
+  reputation and their friends and family hear about it.
+- They **accept**, **counter** (each counter comes down toward their real minimum), say your offer is
+  **too low**, or feel **insulted** by a lowball (reputation −2, the neighbours' mood drops). Run out
+  their patience and they'll ask you to come back in a few days; anger them and they won't see you
+  for weeks. **Holdouts** never sell.
+- Their hidden minimum price moves with mood, your reputation, how many of their friends and family
+  already sold, rumours of generous deals nearby (they'll expect the same), and slow drift over time.
+- State land: **Apply to buy from the city** at the assessed value plus fees (more if your reputation
+  is poor). Public parks aren't for sale.
+
+Time pauses while you talk. Moods recover slowly as days pass.
 
 Tick **Developer mode** in the map info panel to see hidden owner values (minimum price, holdout
 flag, mood). Useful for testing; it's a spoiler in normal play.
@@ -84,7 +110,7 @@ in your browser (IndexedDB / localStorage) per map. Nothing is copied into the p
 | `npm run typecheck` | TypeScript only |
 | `npm run import-map -- …` | OSM importer (see above) |
 | `npm run sample-map` | Regenerate the synthetic sample map |
-| `npm test` | Importer test + world generation test (determinism, consistency) |
+| `npm test` | Importer, world generation and negotiation tests (incl. 600 random conversations) |
 
 ## Project plan
 
@@ -103,7 +129,8 @@ src/
     mapTypes.ts          MapData format
     projection.ts        lat/lon ↔ local meters (equirectangular)
     geometry.ts          area, centroid, point-in-polygon, simplification
-  i18n/strings.ts        ALL user-facing text (en, id) — translate here
+  i18n/strings.ts        all UI text (en, id) — translate here
+  i18n/dialogue.ts       all negotiation dialogue (en, id), several variants per line
   render/                PixiJS: MapRenderer, Camera, input controls, styles, overlay
   map/mapStore.ts        lists/loads maps from /maps or a file
   ui/hud.ts              DOM HUD: top bar, side panel, status bar, toolbar
@@ -114,6 +141,8 @@ src/
     owners.ts            owner generation: stats, stories, multi-plot landlords, relationships
     names.ts             country-specific names and honorifics (ID, MY, TH, PH, VN, fallback)
     regional.ts          currency and price levels per country, money formatting
+    Game.ts              mutable state: clock, money, reputation, negotiation records, promises
+    negotiation.ts       the negotiation engine (pure logic, tested in Node)
 ```
 
 ### Data model
@@ -148,7 +177,7 @@ land area × country price × location factor (main road ×1.7, street ×1.0, al
 
 1. ✅ Setup, OSM import, map rendering with pan/zoom
 2. ✅ Plots and owners: click a plot → owner info panel
-3. Negotiation: offers, counters, refusals, deal options, reputation, neighbor influence, logs
+3. ✅ Negotiation: offers, counters, refusals, deal options, reputation, neighbor influence, logs
 4. Demolish, road drawing, placing buildings on owned land
 5. Economy, clock, income, loans, save/load
 6. Polish: sound, animation, more building types, district/new-city mode

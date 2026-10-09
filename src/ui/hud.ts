@@ -7,12 +7,15 @@ import { LAND_COLORS, STATUS_COLORS, VALUE_RAMP, type Lens } from '../render/Plo
 import type { World } from '../game/World';
 import type { Owner, Plot, PlotStatus } from '../game/types';
 import { hashString } from '../util/random';
-import { band, esc, initials, money, ownerName, plotHeading, plotTitle, roadLabel } from './format';
+import { band, esc, formatDate, initials, money, ownerName, plotHeading, plotTitle, roadLabel } from './format';
+import type { Game, Speed, Toast } from '../game/Game';
+import { canVisit, type Session } from '../game/negotiation';
+import { renderNegotiation, type NegotiationActions } from './negotiationPanel';
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T;
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 
-export type PanelMode = 'info' | 'overlay';
+export type PanelMode = 'info' | 'overlay' | 'talk';
 
 export interface HudCallbacks {
   selectMap(key: string): void;
@@ -22,6 +25,9 @@ export interface HudCallbacks {
   /** Select a plot by id and move the camera to it. */
   focusPlot(id: string): void;
   clearSelection(): void;
+  visit(plotId: string): void;
+  setSpeed(s: Speed): void;
+  negotiation: NegotiationActions;
 }
 
 const DEV_KEY = 'kotabaru.dev';
@@ -35,6 +41,8 @@ export class Hud {
   private currentKey = '';
   private map: MapData | null = null;
   private world: World | null = null;
+  private game: Game | null = null;
+  private session: Session | null = null;
   private selected: Plot | null = null;
   private tooltipPlot: Plot | null = null;
 
@@ -48,9 +56,12 @@ export class Hud {
     this.renderTopBar();
   }
 
-  setMap(map: MapData, key: string, world: World) {
+  setMap(map: MapData, key: string, game: Game) {
     this.map = map;
-    this.world = world;
+    this.world = game.world;
+    this.game = game;
+    this.session = null;
+    this.panel = 'info';
     this.currentKey = key;
     this.selected = null;
     this.renderAll();
@@ -58,9 +69,52 @@ export class Hud {
 
   select(plot: Plot | null) {
     this.selected = plot;
-    if (plot) this.panel = 'info';
+    if (plot || this.panel === 'talk') this.panel = 'info';
+    this.session = null;
     this.renderSidePanel();
     this.renderToolbar();
+  }
+
+  /** Switch the side panel to a conversation. */
+  showSession(s: Session | null) {
+    this.session = s;
+    this.panel = s ? 'talk' : 'info';
+    this.renderSidePanel();
+    this.renderToolbar();
+  }
+
+  /** Re-render whatever the side panel currently shows (after game changes). */
+  refreshPanel() {
+    this.renderSidePanel();
+  }
+
+  updateStats() {
+    const el = document.getElementById('stats');
+    const g = this.game;
+    if (!el || !g) return;
+    const rep = Math.round(g.reputation);
+    const repClass = rep < 30 ? 'bad' : rep > 70 ? 'good' : '';
+    el.innerHTML = `
+      <div class="stat"><small>${t('top.money')}</small><span>${money(g.world, g.money)}</span></div>
+      <div class="stat"><small>${t('top.reputation')}</small><span class="rep ${repClass}"><i style="width:${rep}%"></i><b>${rep}</b></span></div>
+      <div class="stat"><small>${t('top.date')}</small><span>${formatDate(g.date())}</span></div>
+      <div class="speed" role="group">
+        ${([0, 1, 2, 4] as Speed[]).map((n) => `<button data-speed="${n}" class="${g.speed === n ? 'active' : ''}" title="${n === 0 ? t('speed.pause') : t('speed.x', { n })}" aria-label="${n === 0 ? t('speed.pause') : t('speed.x', { n })}">${n === 0 ? '❚❚' : '▶'.repeat(n === 4 ? 3 : n)}</button>`).join('')}
+      </div>`;
+    el.querySelectorAll<HTMLElement>('[data-speed]').forEach((b) => (b.onclick = () => this.cb.setSpeed(parseInt(b.dataset.speed!, 10) as Speed)));
+  }
+
+  showToast(toast: Toast) {
+    const w = this.world;
+    const params: Record<string, string | number> = { ...toast.params };
+    if (w && typeof params.ownerId === 'string') params.owner = ownerName(w.owner(params.ownerId)!);
+    if (w && typeof params.price === 'number') params.price = money(w, params.price);
+    const el = document.createElement('div');
+    el.className = `toast ${toast.kind}`;
+    el.textContent = tk(toast.key, params);
+    $('#toasts').appendChild(el);
+    setTimeout(() => el.classList.add('out'), 4200);
+    setTimeout(() => el.remove(), 4800);
   }
 
   renderAll() {
@@ -119,6 +173,8 @@ export class Hud {
       <button id="open-file">${t('top.openFile')}</button>
       <input id="file-input" type="file" accept=".json,application/json" hidden />
       <span class="spacer"></span>
+      <div id="stats"></div>
+      <span class="spacer"></span>
       <label>${t('top.language')}
         <select id="lang-select">${LANGS.map((l) => `<option value="${l.code}" ${l.code === getLang() ? 'selected' : ''}>${l.label}</option>`).join('')}</select>
       </label>`;
@@ -130,13 +186,16 @@ export class Hud {
       input.value = '';
     };
     $<HTMLSelectElement>('#lang-select').onchange = (e) => setLang((e.target as HTMLSelectElement).value as never);
+    this.updateStats();
   }
 
   // ---------------------------------------------------------------- side panel
   private renderSidePanel() {
     const el = $('#sidepanel');
     el.classList.toggle('plot', this.panel === 'info' && !!this.selected);
+    el.classList.toggle('talk', this.panel === 'talk');
     if (this.panel === 'overlay') return this.renderOverlayPanel(el);
+    if (this.panel === 'talk' && this.session && this.game) return renderNegotiation(el, this.game, this.session, this.cb.negotiation);
     if (this.selected && this.world) return this.renderPlotPanel(el, this.selected, this.world);
     const m = this.map;
     if (!m) { el.innerHTML = ''; return; }
@@ -155,7 +214,8 @@ export class Hud {
         ${world ? `
         <dt>${t('info.plots')}</dt><dd>${world.plots.length.toLocaleString()}</dd>
         <dt>${t('info.owners')}</dt><dd>${world.owners.length.toLocaleString()}</dd>
-        <dt>${t('info.stateLand')}</dt><dd>${(stateArea / 10000).toFixed(1)} ha</dd>` : ''}
+        <dt>${t('info.stateLand')}</dt><dd>${(stateArea / 10000).toFixed(1)} ha</dd>
+        <dt>${t('info.owned')}</dt><dd>${world.plots.filter((p) => world.statusOf(p.id) === 'sold').length}</dd>` : ''}
       </dl>
       <label class="check dev"><input id="dev-toggle" type="checkbox" ${this.devMode ? 'checked' : ''}/> ${t('dev.toggle')}</label>
       <p class="hint">${t('help.controls')}</p>`;
@@ -196,7 +256,7 @@ export class Hud {
       </div>
       <h2>${esc(plotHeading(p))}</h2>
 
-      <h3>${t('panel.owner')}</h3>
+      <h3>${this.game?.ownsPlot(p.id) && o.kind !== 'state' ? t('panel.formerOwner') : t('panel.owner')}</h3>
       <div class="owner">
         <div class="avatar" style="--h:${avatarHue}">${esc(initials(o.name || name))}</div>
         <div><b>${esc(name)}</b><small>${esc(subtitle)}</small></div>
@@ -234,11 +294,34 @@ export class Hud {
           <dt>id</dt><dd>${esc(p.id)} / ${esc(o.id)}</dd>
         </dl>` : ''}
 
-      <button class="primary wide" disabled title="${t('panel.visitSoon')}">${t('panel.visit')}</button>
-      <p class="hint center">${t('panel.visitSoon')}</p>`;
+      ${this.visitSection(p, o)}`;
 
     $('#panel-close').onclick = () => this.cb.clearSelection();
+    document.getElementById('panel-visit')?.addEventListener('click', () => this.cb.visit(p.id));
     el.querySelectorAll<HTMLElement>('[data-plot]').forEach((b) => (b.onclick = () => this.cb.focusPlot(b.dataset.plot!)));
+  }
+
+  /** Negotiation summary + visit button (or ownership info). */
+  private visitSection(p: Plot, o: Owner): string {
+    const g = this.game;
+    if (!g) return '';
+    const w = g.world;
+    if (g.ownsPlot(p.id)) {
+      const promised = g.obligations.filter((ob) => ob.ownerId === o.id).map((ob) => tk(`opt.${ob.kind}`));
+      return `<div class="owned">✓ ${t('panel.youOwn')}${promised.length ? `<small>${t('panel.promised', { list: promised.join(', ') })}</small>` : ''}</div>`;
+    }
+    const rec = g.records.get(o.id);
+    const summary = rec && rec.visits ? `
+      <dl class="neg-summary">
+        <dt>${t('panel.negSummary', { n: rec.visits })}</dt><dd></dd>
+        ${rec.lastOffer ? `<dt>${t('panel.lastOffer')}</dt><dd>${money(w, rec.lastOffer)}</dd>` : ''}
+        ${rec.lastAsk ? `<dt>${t('panel.lastAsk')}</dt><dd>${money(w, rec.lastAsk)}</dd>` : ''}
+      </dl>` : '';
+    const check = canVisit(g, p);
+    const label = o.kind === 'state' ? t('panel.applyState') : t('panel.visit');
+    return `${summary}
+      <button id="panel-visit" class="primary wide" ${check.block ? 'disabled' : ''}>${label}</button>
+      ${check.block === 'cooldown' || check.block === 'angry' ? `<p class="hint center">${t('panel.visitBlocked', { days: check.days ?? 1 })}</p>` : ''}`;
   }
 
   /** Distinct neighbouring owners with their relationship to this owner. */
@@ -312,7 +395,7 @@ export class Hud {
     const future: [string, StringKey][] = [['⛏', 'tool.demolish'], ['🛣', 'tool.road'], ['🏗', 'tool.build']];
     const lenses: [Lens, StringKey, string][] = [['normal', 'lens.normal', '1'], ['plots', 'lens.plots', '2'], ['value', 'lens.value', '3']];
     el.innerHTML = `
-      <button id="tb-select" class="${this.panel === 'info' ? 'active' : ''}">🖱 ${t('tool.select')}</button>
+      <button id="tb-select" class="${this.panel !== 'overlay' ? 'active' : ''}">🖱 ${t('tool.select')}</button>
       ${future.map(([icon, k]) => `<button disabled title="${t('tool.comingSoon')}">${icon} ${t(k)}</button>`).join('')}
       <span class="sep"></span>
       <span class="group-label">${t('tool.lens')}</span>
@@ -320,7 +403,7 @@ export class Hud {
       <span class="sep"></span>
       <button id="tb-overlay" class="${this.panel === 'overlay' ? 'active' : ''}">🛰 ${t('tool.overlay')}</button>
       <button id="tb-reset">⌂ ${t('tool.resetView')}</button>`;
-    $('#tb-select').onclick = () => { this.panel = 'info'; this.overlay.adjusting = false; this.renderAll(); };
+    $('#tb-select').onclick = () => { if (this.panel === 'overlay') this.panel = this.session ? 'talk' : 'info'; this.overlay.adjusting = false; this.renderAll(); };
     $('#tb-overlay').onclick = () => { this.panel = 'overlay'; this.renderAll(); };
     $('#tb-reset').onclick = () => this.cb.resetView();
     el.querySelectorAll<HTMLElement>('[data-lens]').forEach((b) => (b.onclick = () => this.cb.setLens(b.dataset.lens as Lens)));
