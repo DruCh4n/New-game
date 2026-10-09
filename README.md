@@ -3,7 +3,7 @@
 An offline, top-down city-redevelopment game. You play a property developer who buys plots from NPC
 owners in a real neighborhood (imported from OpenStreetMap), then demolishes, lays roads and builds.
 
-**Status: Milestone 6** (all milestones done): map, plots and owners, negotiation, redevelopment,
+**Status: Milestone 7**: real-map hardening, in-game import and balance, on top of milestones 1–6: map, plots and owners, negotiation, redevelopment,
 economy and save/load, plus a lifelike satellite-style look, traffic, sound, 16 building types and
 district planning.
 
@@ -107,6 +107,17 @@ kost, hotels and apartments in residential; shops, markets and malls in commerci
 anywhere), a balanced plan (about 50/30/20) lifts demand for everything inside it, and permits in
 zoned land come faster.
 
+### Difficulty and balance
+
+**☰ Game → New game** offers Easy, Normal and Hard (starting money, how much owners ask, income,
+loan rates and permit waits). Speeds go up to 8×. All tuning numbers live in one file,
+`src/game/balance.ts`.
+
+`npm run sim` runs a bot that plays six in-game years on each difficulty (assemble a block,
+build a tower with a loan, sell units, repeat) and prints cash, debt and net worth per year. Current
+results on the sample map: Easy ≈ Rp 63 B → 235 B, Normal ≈ 42 B → 128 B, Hard ≈ 35 B → 101 B, with a
+cash squeeze in year one (Hard drops to ~20% of its starting net worth before the first tower sells).
+
 ### Saving
 
 **☰ Game** in the top bar: three save slots plus an automatic save every month (stored in this
@@ -124,7 +135,13 @@ flag, mood). Useful for testing; it's a spoiler in normal play.
 
 ## Importing your own neighborhood
 
-Run this **once while online**; it saves a processed file into `/maps` and the game stays offline after.
+**Easiest: inside the game.** Click **🌏 Import** in the top bar, enter a name and the center
+coordinates, copy the query, run it on <https://overpass-turbo.eu> (Run, then Export → "raw OSM data"),
+and load the downloaded file. The map is converted in your browser, saved there, and appears in the
+map list with a ★. No Node needed. You can also drop a raw Overpass export on **Open map file…**.
+
+**Or with the command-line importer.** Run this **once while online**; it saves a processed file into
+`/maps` (bundled with the game) and the game stays offline after.
 
 1. Find the coordinates. Easiest: right-click a spot in Google Maps or openstreetmap.org and copy the
    `lat, lon`. Or draw a box at <https://bboxfinder.com> / openstreetmap.org → *Export*.
@@ -155,7 +172,11 @@ If the public Overpass servers are busy, the script retries on mirrors. As a fal
 query printed by `npm run import-map -- --center … --print-query` into <https://overpass-turbo.eu>,
 export the raw data as JSON, and run the importer with `--input that-file.json` plus the same bbox.
 
-Areas with no OSM building data simply show empty land (later this becomes state-owned land).
+What the importer understands: buildings (floors from `building:levels` or `height`), shops and
+amenities mapped as points inside a building (a warung point makes its house a shophouse), roads and
+paths, rivers, canals, lakes, the sea (from coastlines), parks, fields, forests, cemeteries, single
+trees and tree rows. The country is detected online, or guessed from coordinates. It warns when OSM
+coverage is thin. Areas with no OSM building data become empty state land.
 Map data © OpenStreetMap contributors, ODbL. The attribution is shown in the game.
 
 ### Satellite reference overlay (optional, personal use)
@@ -176,6 +197,7 @@ in your browser (IndexedDB / localStorage) per map. Nothing is copied into the p
 | `npm run import-map -- …` | OSM importer (see above) |
 | `npm run sample-map` | Regenerate the synthetic sample map |
 | `npm test` | Importer, world generation, negotiation, development and economy/save tests |
+| `npm run sim` | Balance simulation: a bot plays 6 years on each difficulty |
 
 ## Project plan
 
@@ -214,7 +236,9 @@ src/
     Economy.ts           monthly close, income, loans, credit, promises
     save.ts, saveStore.ts  save/load (JSON) and browser save slots
     District.ts          district zoning, unlock rule, balance and demand effects
-  render/Terrain.ts      baked ground texture and tree canopy
+  render/Terrain.ts      baked ground texture and tree canopy (256 m tiles)
+  shared/osm.ts          Overpass → map conversion (used by the CLI and the in-game import)
+  game/balance.ts        all tuning knobs and difficulty levels
   render/Life.ts         traffic, cloud shadows, cranes, dust
   audio/Sound.ts         synthesised sound effects and ambience
 ```
@@ -255,3 +279,4 @@ land area × country price × location factor (main road ×1.7, street ×1.0, al
 4. ✅ Demolish, road drawing, placing buildings on owned land
 5. ✅ Economy, clock, income, loans, save/load
 6. ✅ Polish: sound, animation, more building types, district/new-city mode, lifelike terrain
+7. ✅ Real-map hardening (coastlines, shop points, big/dense maps), in-game import, difficulty and balance

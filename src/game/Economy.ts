@@ -32,10 +32,25 @@ const r0 = (v: number) => Math.round(v);
 
 // ------------------------------------------------------------------ assets & credit
 
+/** Value of the land you own; plots under your finished buildings count at the redevelopment uplift. */
 export function ownedLandValue(game: Game): number {
+  const developed = developedPlots(game);
   let v = 0;
-  for (const p of game.world.plots) if (game.ownsPlot(p.id)) v += p.landValue;
+  for (const p of game.world.plots) if (game.ownsPlot(p.id)) v += p.landValue * (developed.has(p.index) ? BALANCE.developedLandUplift : 1);
   return v;
+}
+
+let devCache = { key: '', set: new Set<number>() };
+/** Plot indices covered by your finished buildings. */
+function developedPlots(game: Game): Set<number> {
+  const done = game.dev.buildings.filter((b) => b.daysLeft === 0 && b.permitDays === 0);
+  const key = `${game.world.seed}|${done.map((b) => b.id).join(',')}`;
+  if (key === devCache.key) return devCache.set;
+  const set = new Set<number>();
+  const P = game.world.parcels;
+  for (const b of done) game.world.grid.forPolygon(b.poly, (i) => { if (P[i] >= 0) set.add(P[i]); });
+  devCache = { key, set };
+  return set;
 }
 
 export function buildingsValue(game: Game): number {

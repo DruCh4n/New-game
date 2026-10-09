@@ -16,6 +16,7 @@
     "test:negotiation": "tsx scripts/test-negotiation.ts",
     "test:development": "tsx scripts/test-development.ts",
     "test:economy": "tsx scripts/test-economy.ts",
+    "sim": "tsx scripts/sim-balance.ts",
     "test": "npm run test:import && npm run test:world && npm run test:negotiation && npm run test:development && npm run test:economy"
   },
   "dependencies": {
