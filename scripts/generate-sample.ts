@@ -259,16 +259,34 @@ landuse.push({ id: id('l'), kind: 'residential', poly: [-HALF, -HALF, HALF, -HAL
 landuse.push({ id: id('l'), kind: 'commercial', poly: bufferLine(mainPts, 30) });
 
 // ---------- 4. landmark buildings ----------
-const mosque = rect(-20, -40, 0.0, 24, 24);
-tryPlace(mosque, { type: 'mosque', use: 'place_of_worship', name: 'Masjid Al-Ikhlas', levels: 2 }, 0.5);
-tryPlace(rect(-20, -64, 0.0, 14, 8), { type: 'yes', use: 'place_of_worship', name: 'Serambi Masjid' }, 0.5);
-tryPlace(rect(260, 75, 0.02, 48, 34), { type: 'retail', use: 'marketplace', name: 'Pasar Sido Mulyo', levels: 1 }, 0.5);
-tryPlace(rect(90, -110, 0, 44, 13), { type: 'school', use: 'school', name: 'SD Negeri 3', levels: 2 });
-tryPlace(rect(90, -132, 0, 44, 13), { type: 'school', use: 'school', levels: 2 });
-tryPlace(rect(395, -260, 0.04, 38, 26), { type: 'warehouse', use: 'industrial' });
-tryPlace(rect(-140, -5, 0.01, 30, 18), { type: 'office', use: 'townhall', name: 'Kantor Kelurahan', levels: 2 });
-tryPlace(rect(-470, 120, 0, 16, 18), { type: 'church', use: 'place_of_worship', name: 'Gereja Santo Yusup' });
-tryPlace(rect(240, -40, 0.0, 22, 16), { type: 'commercial', use: 'shop:supermarket', name: 'Toko Makmur', levels: 2 });
+/** Places a landmark at the first free spot spiralling out from (x, y). */
+function placeNear(x: number, y: number, angle: number, w: number, d: number, b: Omit<MapBuilding, 'id' | 'poly'>): FlatPoints | null {
+  for (let r = 0; r <= 90; r += 6) {
+    const steps = r === 0 ? 1 : Math.ceil((2 * Math.PI * r) / 8);
+    for (let k = 0; k < steps; k++) {
+      const a = (k / steps) * Math.PI * 2;
+      const poly = rect(x + Math.cos(a) * r, y + Math.sin(a) * r, angle, w, d);
+      if (tryPlace(poly, b, 1)) return poly;
+    }
+  }
+  console.warn(`could not place ${b.name ?? b.type}`);
+  return null;
+}
+const mosque = placeNear(-20, -40, 0.0, 24, 24, { type: 'mosque', use: 'place_of_worship', name: 'Masjid Al-Ikhlas', levels: 2 });
+if (mosque) {
+  const mx = (mosque[0] + mosque[4]) / 2, my = (mosque[1] + mosque[5]) / 2;
+  placeNear(mx, my - 20, 0, 14, 8, { type: 'yes', use: 'place_of_worship', name: 'Serambi Masjid' });
+}
+placeNear(260, 85, 0.02, 48, 34, { type: 'retail', use: 'marketplace', name: 'Pasar Sido Mulyo', levels: 1 });
+placeNear(90, -110, 0, 44, 13, { type: 'school', use: 'school', name: 'SD Negeri 3', levels: 2 });
+placeNear(90, -132, 0, 44, 13, { type: 'school', use: 'school', levels: 2 });
+placeNear(395, -260, 0.04, 38, 26, { type: 'warehouse', use: 'industrial' });
+placeNear(-140, -5, 0.01, 30, 18, { type: 'office', use: 'townhall', name: 'Kantor Kelurahan', levels: 2 });
+placeNear(-470, 120, 0, 16, 18, { type: 'church', use: 'place_of_worship', name: 'Gereja Santo Yusup' });
+placeNear(240, -40, 0.0, 22, 16, { type: 'commercial', use: 'shop:supermarket', name: 'Toko Makmur', levels: 2 });
+placeNear(-250 + 180, 330, 0.0, 20, 14, { type: 'school', use: 'kindergarten', name: 'TK Pertiwi' });
+placeNear(390, -40, 0.0, 26, 18, { type: 'office', use: 'office', name: 'Kantor Koperasi', levels: 3 });
+placeNear(-60, 420, 0.0, 30, 20, { type: 'warehouse', use: 'industrial', name: 'Gudang Beras' });
 
 // ---------- 5. buildings along every street ----------
 function lineToPts(l: FlatPoints): Pt[] {

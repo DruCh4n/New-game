@@ -56,6 +56,16 @@ export class Camera {
     this.clampTarget();
   }
 
+  /** Smoothly move so (wx, wy) is at screen center, zooming in to at least `minZoom`. */
+  centerOn(wx: number, wy: number, minZoom?: number) {
+    this.anchor = null;
+    this.stopInertia();
+    this.tx = wx;
+    this.ty = wy;
+    if (minZoom && this.tzoom < minZoom) this.tzoom = Math.min(minZoom, this.maxZoom);
+    this.clampTarget();
+  }
+
   setInertia(vxScreen: number, vyScreen: number) {
     this.vx = -vxScreen / this.zoom;
     this.vy = -vyScreen / this.zoom;

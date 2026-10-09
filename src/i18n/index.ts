@@ -16,6 +16,11 @@ export function t(key: StringKey, params?: Record<string, string | number>): str
   return s;
 }
 
+/** For keys built at runtime (e.g. `cat.${category}`); falls back to the key itself. */
+export function tk(key: string, params?: Record<string, string | number>): string {
+  return t(key as StringKey, params);
+}
+
 export function getLang(): Lang {
   return lang;
 }

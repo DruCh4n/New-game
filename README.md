@@ -3,8 +3,8 @@
 An offline, top-down city-redevelopment game. You play a property developer who buys plots from NPC
 owners in a real neighborhood (imported from OpenStreetMap), then demolishes, lays roads and builds.
 
-**Status: Milestone 1** — project setup, OSM import script, stylized map rendering with pan/zoom,
-optional satellite reference overlay.
+**Status: Milestone 2** — map rendering with pan/zoom (M1) plus plots and owners: every building
+and patch of empty land is a plot with a generated owner, value and neighbours. Click to inspect.
 
 ## Quick start
 
@@ -25,6 +25,11 @@ place) so you can play without importing anything. Regenerate it with `npm run s
 | Pan | Drag (any mouse button), or WASD / arrow keys |
 | Zoom | Mouse wheel (zooms toward the cursor), or `+` / `-` |
 | Reset view | `Home` key or the **Reset view** button |
+| Inspect a plot | Click it (hover shows owner and value) · `Esc` closes |
+| Switch view | `1` normal · `2` plot status · `3` land value |
+
+Tick **Developer mode** in the map info panel to see hidden owner values (minimum price, holdout
+flag, mood). Useful for testing; it's a spoiler in normal play.
 
 ## Importing your own neighborhood
 
@@ -79,7 +84,7 @@ in your browser (IndexedDB / localStorage) per map. Nothing is copied into the p
 | `npm run typecheck` | TypeScript only |
 | `npm run import-map -- …` | OSM importer (see above) |
 | `npm run sample-map` | Regenerate the synthetic sample map |
-| `npm run test:import` | Offline test of the OSM processing using a fixture |
+| `npm test` | Importer test + world generation test (determinism, consistency) |
 
 ## Project plan
 
@@ -103,7 +108,12 @@ src/
   map/mapStore.ts        lists/loads maps from /maps or a file
   ui/hud.ts              DOM HUD: top bar, side panel, status bar, toolbar
   util/                  seeded RNG, IndexedDB helper
-  (M2+) game/            plots, owners, negotiation, economy, building, save/load
+  game/
+    World.ts             generates and holds plots + owners for a map; hit testing
+    plots.ts             plots from footprints (+2 m yard) and 20 m empty-land cells, value, neighbours
+    owners.ts            owner generation: stats, stories, multi-plot landlords, relationships
+    names.ts             country-specific names and honorifics (ID, MY, TH, PH, VN, fallback)
+    regional.ts          currency and price levels per country, money formatting
 ```
 
 ### Data model
@@ -116,7 +126,13 @@ around the map center (x = east, y = south, matching screen space), stored as fl
 - `water[]`, `waterways[]`, `greens[]` (park, forest, paddy…), `landuse[]`, `trees`
 - `center`, `bbox`, `bounds`, `country`, `attribution`
 
-**Game state (from Milestone 2, saved as JSON)** — everything that changes, referencing map ids:
+**How plots are made.** Each building footprint grows by a 2 m yard to form a plot. The remaining
+land is cut into 20 m cells: rice fields/farmland become farmer-owned plots (one farmer per 2×2
+block), parks and other empty land belong to the city, cemeteries to a community trust. Plot value =
+land area × country price × location factor (main road ×1.7, street ×1.0, alley ×0.85, footpath only
+×0.7) + floor area × build cost × condition.
+
+**Game state (saved as JSON from Milestone 5)** — everything that changes, referencing map ids:
 
 - `Plot`: id, polygon (footprint + buffer, or empty state land), area, base value, road access,
   neighbor plot ids, status (`not_approached | negotiating | sold | refused`), building state
@@ -130,8 +146,8 @@ around the map center (x = east, y = south, matching screen space), stored as fl
 
 ### Milestones
 
-1. ✅ Setup, OSM import, map rendering with pan/zoom (this one)
-2. Plots and owners: click a plot → owner info panel
+1. ✅ Setup, OSM import, map rendering with pan/zoom
+2. ✅ Plots and owners: click a plot → owner info panel
 3. Negotiation: offers, counters, refusals, deal options, reputation, neighbor influence, logs
 4. Demolish, road drawing, placing buildings on owned land
 5. Economy, clock, income, loans, save/load

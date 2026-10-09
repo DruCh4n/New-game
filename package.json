@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit",
     "import-map": "tsx scripts/import-osm.ts",
     "sample-map": "tsx scripts/generate-sample.ts",
-    "test:import": "tsx scripts/test-import.ts"
+    "test:import": "tsx scripts/test-import.ts",
+    "test:world": "tsx scripts/test-world.ts",
+    "test": "npm run test:import && npm run test:world"
   },
   "dependencies": {
     "pixi.js": "^8.22.0"
