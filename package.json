@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:single": "tsx scripts/build-single.ts",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "import-map": "tsx scripts/import-osm.ts",

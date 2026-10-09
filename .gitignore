@@ -4,3 +4,4 @@ dist/
 .DS_Store
 # raw Overpass downloads (re-creatable, can be large)
 maps/raw/
+dist-single/

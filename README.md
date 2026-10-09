@@ -75,6 +75,7 @@ in your browser (IndexedDB / localStorage) per map. Nothing is copied into the p
 | --- | --- |
 | `npm run dev` | Dev server with hot reload |
 | `npm run build` | Typecheck + production build into `dist/` (works from `file://`, ready for Tauri/Electron) |
+| `npm run build:single` | One self-contained `dist-single/kota-baru.html` you can double-click to play offline |
 | `npm run typecheck` | TypeScript only |
 | `npm run import-map -- …` | OSM importer (see above) |
 | `npm run sample-map` | Regenerate the synthetic sample map |

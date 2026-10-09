@@ -12,12 +12,13 @@
   font-size: 14px;
   color: var(--text);
   background: var(--bg);
+  color-scheme: dark;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; overflow: hidden; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); }
 button, select, input { font: inherit; color: inherit; }
 
-#app { display: grid; grid-template-rows: 46px 1fr 56px; height: 100vh; }
+#app { display: grid; grid-template-rows: 46px 1fr 56px; height: 100%; }
 
 /* ---------- top bar ---------- */
 #topbar {
@@ -84,7 +85,12 @@ button.active, button.active:hover { background: var(--accent); color: #1b1f26; 
 /* ---------- toolbar ---------- */
 #toolbar {
   display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 12px;
-  background: var(--panel-solid); border-top: 1px solid var(--border);
+  background: var(--panel-solid); border-top: 1px solid var(--border); overflow-x: auto;
+}
+@media (max-width: 700px) {
+  #toolbar { justify-content: flex-start; }
+  #sidepanel { width: auto; left: 12px; max-height: 40%; }
+  #topbar .brand { display: none; }
 }
 #toolbar button { white-space: nowrap; display: flex; align-items: center; gap: 6px; padding: 7px 12px; }
 #toolbar .sep { width: 1px; height: 28px; background: var(--border); margin: 0 6px; }
