@@ -18,10 +18,27 @@ export interface NewBuilding {
   daysLeft: number;
   total: number;
   cost: number;
+  /** Days until the building permit is granted (construction waits). */
+  permitDays: number;
+  /** 0..1 share of units let (rent/lease). */
+  occupancy: number;
+  unitsSold: number;
+  /** Units given away to fulfil promises (apartments / shop units). */
+  reserved: number;
+  incomeLastMonth: number;
 }
 
-export type Problem = 'outside' | 'water' | 'onRoad' | 'blocked' | 'notOwned' | 'setback' | 'noRoad' | 'money' | 'tooShort';
+export type Problem = 'outside' | 'water' | 'onRoad' | 'blocked' | 'notOwned' | 'setback' | 'noRoad' | 'money' | 'tooShort' | 'permit';
 export interface Check { ok: boolean; problem?: Problem; cost: number; days: number }
+
+export interface DevSave {
+  nextId: number;
+  demolished: string[];
+  demolishing: Demolition[];
+  removedRoads: string[];
+  roads: NewRoad[];
+  buildings: NewBuilding[];
+}
 
 export type DevEvent = 'roads' | 'buildings' | 'demolition' | 'progress';
 
@@ -41,7 +58,7 @@ export class Development {
   readonly buildings: NewBuilding[] = [];
   private nextId = 1;
   private origRoads: Map<string, MapRoad>;
-  onChange: (e: DevEvent, detail?: { kind: 'road' | 'building' | 'demolition'; id: string }) => void = () => {};
+  onChange: (e: DevEvent, detail?: { kind: 'road' | 'building' | 'demolition' | 'permit'; id: string }) => void = () => {};
 
   constructor(private world: World, private money: () => number) {
     this.grid = world.grid;
@@ -257,9 +274,12 @@ export class Development {
     return { ok: true, cost, days };
   }
 
-  placeBuilding(type: BuildingTypeId, cx: number, cy: number, angle: number, check: Check): NewBuilding {
+  placeBuilding(type: BuildingTypeId, cx: number, cy: number, angle: number, check: Check, permitDays = 0): NewBuilding {
     const poly = this.footprint(type, cx, cy, angle);
-    const b: NewBuilding = { id: `nb${this.nextId++}`, type, cx, cy, angle, poly, daysLeft: check.days, total: check.days, cost: check.cost };
+    const b: NewBuilding = {
+      id: `nb${this.nextId++}`, type, cx, cy, angle, poly, daysLeft: check.days, total: check.days, cost: check.cost,
+      permitDays, occupancy: 0, unitsSold: 0, reserved: 0, incomeLastMonth: 0,
+    };
     this.buildings.push(b);
     this.grid.setPolygon(poly, NEWBLD, true);
     this.onChange('buildings');
@@ -278,6 +298,46 @@ export class Development {
   buildingAt(x: number, y: number): NewBuilding | null {
     for (const b of this.buildings) if (pointInRect(b, x, y)) return b;
     return null;
+  }
+
+  // ------------------------------------------------------------ save / load
+  serialize(): DevSave {
+    return {
+      nextId: this.nextId,
+      demolished: [...this.demolished],
+      demolishing: [...this.demolishing.values()],
+      removedRoads: [...this.removedRoads],
+      roads: this.roads,
+      buildings: this.buildings,
+    };
+  }
+
+  /** Re-applies saved changes to a fresh world (ownership must already be restored). */
+  restore(d: DevSave) {
+    this.nextId = d.nextId;
+    const g = this.grid;
+    for (const id of d.demolished) {
+      this.demolished.add(id);
+      const bl = this.world.map.buildings.find((b) => b.id === id);
+      if (bl) g.setPolygon(bl.poly, BUILDING, false);
+    }
+    for (const x of d.demolishing) this.demolishing.set(x.buildingId, x);
+    for (const id of d.removedRoads) {
+      const r = this.origRoads.get(id);
+      if (!r) continue;
+      this.removedRoads.add(id);
+      g.addRoad(r.line, r.width, CAR_ROADS.has(r.kind), -1);
+      g.forLine(r.line, r.width / 2, (i) => { if (!(g.flags[i] & ROAD)) g.flags[i] |= OWNED; });
+    }
+    for (const r of d.roads) {
+      const rt = roadType(r.type);
+      this.roads.push(r);
+      g.addRoad(r.line, rt.width, rt.car, 1);
+    }
+    for (const b of d.buildings) {
+      this.buildings.push(b);
+      g.setPolygon(b.poly, NEWBLD, true);
+    }
   }
 
   // ------------------------------------------------------------ time
@@ -299,7 +359,11 @@ export class Development {
       changed = true;
       if (r.daysLeft === 0) this.onChange('roads', { kind: 'road', id: r.id });
     }
-    for (const b of this.buildings) if (b.daysLeft > 0) {
+    for (const b of this.buildings) if (b.permitDays > 0) {
+      b.permitDays--;
+      changed = true;
+      if (b.permitDays === 0) this.onChange('progress', { kind: 'permit', id: b.id });
+    } else if (b.daysLeft > 0) {
       b.daysLeft--;
       changed = true;
       if (b.daysLeft === 0) this.onChange('buildings', { kind: 'building', id: b.id });

@@ -15,7 +15,8 @@
     "test:world": "tsx scripts/test-world.ts",
     "test:negotiation": "tsx scripts/test-negotiation.ts",
     "test:development": "tsx scripts/test-development.ts",
-    "test": "npm run test:import && npm run test:world && npm run test:negotiation && npm run test:development"
+    "test:economy": "tsx scripts/test-economy.ts",
+    "test": "npm run test:import && npm run test:world && npm run test:negotiation && npm run test:development && npm run test:economy"
   },
   "dependencies": {
     "pixi.js": "^8.22.0"

@@ -24,6 +24,8 @@ import type { Check } from './game/Development';
 import { pointInPolygon } from './shared/geometry';
 import type { FlatPoints } from './shared/mapTypes';
 import { tk } from './i18n';
+import { isSaveData, restore, serialize, type SaveData } from './game/save';
+import { readSlot, writeSlot } from './game/saveStore';
 
 async function boot() {
   const host = document.getElementById('canvas-host')!;
@@ -60,16 +62,20 @@ async function boot() {
   let projection: LocalProjection | null = null;
   let cursor: { sx: number; sy: number } | null = null;
   let selected: Plot | null = null;
+  let currentKey = '';
+  let currentLoader: (() => Promise<MapData>) | null = null;
 
   const maps = listBundledMaps();
 
-  async function show(loader: () => Promise<MapData>, key: string) {
+  async function show(loader: () => Promise<MapData>, key: string, save?: SaveData) {
     hud.showLoading(t('loading'));
     try {
       const m = await loader();
       await new Promise((r) => setTimeout(r, 30)); // let the loading message paint before heavy work
-      const w = new World(m);
-      const g = new Game(w);
+      const g = save ? restore(save, m) : new Game(new World(m));
+      const w = g.world;
+      currentKey = key;
+      currentLoader = () => Promise.resolve(m);
       g.on((e) => {
         if (e === 'status') { plotLayer.redrawLens(); devLayer.redraw(); }
         if (e === 'dev') {
@@ -83,6 +89,10 @@ async function boot() {
           hud.renderPalette();
         }
         if (e === 'day' || e === 'money' || e === 'speed') hud.updateStats();
+        if (e === 'month') {
+          writeSlot('auto', serialize(g, currentKey));
+          if (hud.panel === 'finance') hud.refreshPanel();
+        }
         if (e === 'day' && selected && hud.panel === 'info') hud.refreshPanel();
       });
       g.onToast((tst) => hud.showToast(tst));
@@ -94,7 +104,8 @@ async function boot() {
       renderer.setMap(m);
       renderer.highlights.addChild(plotLayer.container);
       plotLayer.setWorld(w);
-      lastRefresh = { demolished: 0, removed: 0 };
+      lastRefresh = { demolished: g.dev.demolished.size, removed: g.dev.removedRoads.size };
+      renderer.refresh(g.dev.demolished, g.dev.removedRoads);
       devLayer.setGame(g);
       setTool('select');
       camera.resize(app.screen.width, app.screen.height);
@@ -102,6 +113,7 @@ async function boot() {
       hud.setMap(m, key, g);
       await overlay.setMap(m, key);
       hud.showLoading(null);
+      if (save) hud.showToast({ kind: 'good', key: 'game.loaded' });
     } catch (e) {
       console.error(e);
       hud.showLoading(t('loading.failed', { error: (e as Error).message }), true);
@@ -261,6 +273,35 @@ async function boot() {
       demolishPlot: (id) => { const p = world?.plot(id); if (p && game) game.demolish(p); },
       removeNewBuilding: (id) => { game?.dev.removeBuilding(id); hud.select(null); },
       addMoney: () => game?.addMoney(game.world.region.landPerM2 * 15000),
+      gameMenu: {
+        save: (slot) => {
+          if (!game) return;
+          const ok = writeSlot(slot, serialize(game, currentKey));
+          hud.showToast({ kind: ok ? 'good' : 'bad', key: ok ? 'game.saved' : 'game.saveFailed' });
+          hud.refreshPanel();
+        },
+        load: (slot) => { const d = readSlot(slot); if (d) loadSave(d); },
+        exportFile: () => {
+          if (!game) return;
+          const blob = new Blob([JSON.stringify(serialize(game, currentKey))], { type: 'application/json' });
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = `kotabaru-${currentKey.replace(/^file:/, '').replace(/[^a-z0-9-]+/gi, '-')}-day${game.day}.json`;
+          a.click();
+          setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+        },
+        importFile: async (file) => {
+          try {
+            const data = JSON.parse(await file.text());
+            if (!isSaveData(data)) throw new Error('not a Kota Baru save file');
+            loadSave(data);
+          } catch (e) {
+            hud.showToast({ kind: 'bad', key: 'game.loadFailed', params: { error: (e as Error).message } });
+          }
+        },
+        newGame: () => { if (currentLoader) void show(currentLoader, currentKey); },
+        close: () => hud.openPanel('info'),
+      },
       negotiation: {
         offer: (cash, opts) => talk((g, s) => makeOffer(g, s, cash, opts)),
         acceptAsk: () => talk((g, s) => acceptCounter(g, s)),
@@ -279,6 +320,19 @@ async function boot() {
     overlay,
   );
   onLangChange(() => hud.renderAll());
+
+  /** Loads a save, switching to its map if needed. */
+  function loadSave(data: SaveData) {
+    if (data.mapKey === currentKey && currentLoader) return void show(currentLoader, currentKey, data);
+    const entry = maps.find((m) => m.key === data.mapKey);
+    if (!entry) {
+      hud.showToast({ kind: 'bad', key: 'game.otherMap', params: { map: data.mapName } });
+      return;
+    }
+    rememberMap(entry.key);
+    hud.setMaps(maps, entry.key);
+    void show(entry.load, entry.key, data);
+  }
 
   /** Runs a negotiation action on the current conversation and refreshes the panel. */
   function talk(fn: (g: Game, s: NonNullable<Game['session']>) => unknown) {

@@ -8,6 +8,9 @@
   --accent: #e0a458;
   --accent-2: #5fb3a1;
   --danger: #d9655b;
+  /* cash-flow chart: diverging pair, validated against the panel surface */
+  --pos: #3987e5;
+  --neg: #e5534b;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-size: 14px;
   color: var(--text);
@@ -265,3 +268,38 @@ dl.neg-summary { margin-top: 12px !important; font-size: 12px; }
 button.wide.danger { margin-top: 10px; }
 #statusbar { z-index: 2; }
 @media (max-width: 1200px) { #palette { max-width: calc(100% - 24px); bottom: 54px; } }
+
+/* ---------- milestone 5: finances, save slots ---------- */
+.statbtn { display: flex; flex-direction: column; align-items: flex-start; line-height: 1.1; background: none; border: 1px solid transparent; padding: 2px 6px; min-width: 96px; }
+.statbtn:hover:not(:disabled) { background: #2a303b; border-color: var(--border); }
+.statbtn small { color: var(--muted); font-size: 11px; }
+.statbtn em { font-style: normal; font-size: 10px; }
+.pos { color: #7fb2ee; }
+.neg { color: #f08a7e; }
+#sidepanel h2 { margin: 0; }
+.panel-head h2 { flex: 1; }
+dl.fin-table { font-size: 13px; }
+dl.fin-table .total { border-top: 1px solid var(--border); padding-top: 4px; font-weight: 600; color: var(--text); }
+.chart-wrap { position: relative; }
+svg.chart { width: 100%; height: auto; display: block; background: #1a1e25; border-radius: 6px; }
+svg.chart .baseline { stroke: #5a6270; stroke-width: 1; }
+svg.chart .bar-pos { fill: var(--pos); }
+svg.chart .bar-neg { fill: var(--neg); }
+svg.chart .hit { fill: transparent; cursor: default; }
+svg.chart .hit.on { fill: rgba(255, 255, 255, 0.06); }
+.chart-tip {
+  position: absolute; top: calc(100% + 6px); pointer-events: none; white-space: nowrap;
+  background: var(--panel-solid); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px;
+  font-size: 12px; display: flex; flex-direction: column; gap: 1px; font-variant-numeric: tabular-nums; z-index: 2;
+}
+.chart-tip[hidden] { display: none; }
+.chart-tip span { color: var(--muted); }
+ul.loans, ul.promises, ul.slots { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+ul.loans li, ul.promises li, ul.slots li { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+ul.loans button { font-size: 11px; padding: 2px 6px; }
+ul.promises .ok { color: #8fd18a; }
+ul.promises .bad { color: #f08a7e; }
+ul.slots li { background: #232831; border: 1px solid var(--border); border-radius: 8px; padding: 8px; }
+ul.slots li > div { display: flex; flex-direction: column; min-width: 0; }
+ul.slots small { color: var(--muted); }
+ul.slots li > span { display: flex; gap: 4px; flex: none; }

@@ -13,13 +13,16 @@ import { canVisit, type Session } from '../game/negotiation';
 import { renderNegotiation, type NegotiationActions } from './negotiationPanel';
 import { BUILDING_TYPES, ROAD_TYPES, buildingType, type BuildingTypeId, type RoadTypeId } from '../game/catalog';
 import type { NewBuilding } from '../game/Development';
+import { demand, monthlyIncome, unitPrice } from '../game/Economy';
+import { renderFinance } from './financePanel';
+import { renderGameMenu, type GameMenuActions } from './gamePanel';
 
 export type Tool = 'select' | 'demolish' | 'road' | 'build';
 
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T;
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 
-export type PanelMode = 'info' | 'overlay' | 'talk';
+export type PanelMode = 'info' | 'overlay' | 'talk' | 'finance' | 'game';
 
 export interface HudCallbacks {
   selectMap(key: string): void;
@@ -37,6 +40,7 @@ export interface HudCallbacks {
   demolishPlot(plotId: string): void;
   removeNewBuilding(id: string): void;
   addMoney(): void;
+  gameMenu: GameMenuActions;
   negotiation: NegotiationActions;
 }
 
@@ -150,6 +154,12 @@ export class Hud {
     this.renderToolbar();
   }
 
+  openPanel(mode: 'finance' | 'game' | 'info') {
+    this.panel = mode;
+    this.renderSidePanel();
+    this.renderToolbar();
+  }
+
   /** Re-render whatever the side panel currently shows (after game changes). */
   refreshPanel() {
     this.renderSidePanel();
@@ -162,13 +172,15 @@ export class Hud {
     const rep = Math.round(g.reputation);
     const repClass = rep < 30 ? 'bad' : rep > 70 ? 'good' : '';
     el.innerHTML = `
-      <div class="stat"><small>${t('top.money')}</small><span>${money(g.world, g.money)}</span></div>
+      <button id="stat-money" class="stat statbtn" title="${t('top.finance')}"><small>${t('top.money')}</small><span class="${g.money < 0 ? 'neg' : ''}">${money(g.world, g.money)}</span>
+        ${g.reports.length ? `<em class="${g.reports[g.reports.length - 1].net >= 0 ? 'pos' : 'neg'}">${g.reports[g.reports.length - 1].net >= 0 ? '▲' : '▼'} ${money(g.world, Math.abs(g.reports[g.reports.length - 1].net))}</em>` : ''}</button>
       <div class="stat"><small>${t('top.reputation')}</small><span class="rep ${repClass}"><i style="width:${rep}%"></i><b>${rep}</b></span></div>
       <div class="stat"><small>${t('top.date')}</small><span>${formatDate(g.date())}</span></div>
       <div class="speed" role="group">
         ${([0, 1, 2, 4] as Speed[]).map((n) => `<button data-speed="${n}" class="${g.speed === n ? 'active' : ''}" title="${n === 0 ? t('speed.pause') : t('speed.x', { n })}" aria-label="${n === 0 ? t('speed.pause') : t('speed.x', { n })}">${n === 0 ? '❚❚' : '▶'.repeat(n === 4 ? 3 : n)}</button>`).join('')}
       </div>`;
     el.querySelectorAll<HTMLElement>('[data-speed]').forEach((b) => (b.onclick = () => this.cb.setSpeed(parseInt(b.dataset.speed!, 10) as Speed)));
+    document.getElementById('stat-money')!.onclick = () => this.openPanel(this.panel === 'finance' ? 'info' : 'finance');
   }
 
   showToast(toast: Toast) {
@@ -247,6 +259,7 @@ export class Hud {
       <span class="spacer"></span>
       <div id="stats"></div>
       <span class="spacer"></span>
+      <button id="game-menu">☰ ${t('top.game')}</button>
       <label>${t('top.language')}
         <select id="lang-select">${LANGS.map((l) => `<option value="${l.code}" ${l.code === getLang() ? 'selected' : ''}>${l.label}</option>`).join('')}</select>
       </label>`;
@@ -258,6 +271,7 @@ export class Hud {
       input.value = '';
     };
     $<HTMLSelectElement>('#lang-select').onchange = (e) => setLang((e.target as HTMLSelectElement).value as never);
+    $('#game-menu').onclick = () => this.openPanel(this.panel === 'game' ? 'info' : 'game');
     this.updateStats();
   }
 
@@ -267,6 +281,12 @@ export class Hud {
     el.classList.toggle('plot', this.panel === 'info' && !!this.selected);
     el.classList.toggle('talk', this.panel === 'talk');
     if (this.panel === 'overlay') return this.renderOverlayPanel(el);
+    if (this.panel === 'game') return renderGameMenu(el, this.game, this.cb.gameMenu);
+    if (this.panel === 'finance' && this.game) {
+      renderFinance(el, this.game, () => { this.updateStats(); this.renderSidePanel(); });
+      $('#panel-close').onclick = () => this.openPanel('info');
+      return;
+    }
     if (this.panel === 'talk' && this.session && this.game) return renderNegotiation(el, this.game, this.session, this.cb.negotiation);
     if (this.selected && this.world) return this.renderPlotPanel(el, this.selected, this.world);
     if (this.selectedNew && this.game) return this.renderNewBuildingPanel(el, this.selectedNew, this.game);
@@ -314,15 +334,31 @@ export class Hud {
       <h2>${bt.icon} ${tk(`bt.${b.type}`)}</h2>
       ${b.daysLeft ? `<div class="progress"><i style="width:${pct}%"></i></div>` : ''}
       <dl>
-        <dt>${t('nb.status')}</dt><dd>${b.daysLeft ? t('nb.building', { pct, days: b.daysLeft }) : t('nb.done')}</dd>
+        <dt>${t('nb.status')}</dt><dd>${b.permitDays > 0 ? t('nb.permit', { days: b.permitDays }) : b.daysLeft ? t('nb.building', { pct, days: b.daysLeft }) : t('nb.done')}</dd>
         <dt>${t('panel.building')}</dt><dd>${t('bt.size', { w: bt.width, d: bt.depth, floors: bt.floors })}</dd>
         <dt>${t('nb.floorArea')}</dt><dd>${(bt.width * bt.depth * bt.floors).toLocaleString()} m²</dd>
         <dt>${t('nb.cost')}</dt><dd>${money(g.world, b.cost)}</dd>
       </dl>
-      <p class="hint">${t('nb.incomeSoon')}</p>
+      ${this.buildingEconomy(b, g)}
       <button id="nb-remove" class="wide danger">${t('nb.remove')}</button>`;
     $('#panel-close').onclick = () => this.cb.clearSelection();
     $('#nb-remove').onclick = () => this.cb.removeNewBuilding(b.id);
+  }
+
+  private buildingEconomy(b: NewBuilding, g: Game): string {
+    const bt = buildingType(b.type);
+    if (b.daysLeft > 0 || b.permitDays > 0) return '';
+    if (bt.income === 'civic') return `<p class="hint">${t('nb.civic')}</p>`;
+    const rows: string[] = [];
+    if (bt.income === 'sale') {
+      rows.push(`<dt>${t('nb.sold')}</dt><dd>${b.unitsSold} / ${bt.units - b.reserved} · ${money(g.world, unitPrice(b))}</dd>`);
+    } else {
+      rows.push(`<dt>${t('nb.occupancy')}</dt><dd>${Math.round(b.occupancy * 100)}% · ${money(g.world, monthlyIncome(b))}/mo</dd>`);
+    }
+    if (b.reserved) rows.push(`<dt></dt><dd>${t('nb.reserved', { n: b.reserved })}</dd>`);
+    rows.push(`<dt>${t('nb.income')}</dt><dd>${money(g.world, b.incomeLastMonth)}</dd>`);
+    rows.push(`<dt>${t('nb.demand')}</dt><dd>×${demand(g, b).toFixed(2)}</dd>`);
+    return `<dl>${rows.join('')}</dl>`;
   }
 
   private renderPlotPanel(el: HTMLElement, p: Plot, w: World) {

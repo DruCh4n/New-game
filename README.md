@@ -3,8 +3,9 @@
 An offline, top-down city-redevelopment game. You play a property developer who buys plots from NPC
 owners in a real neighborhood (imported from OpenStreetMap), then demolishes, lays roads and builds.
 
-**Status: Milestone 4**: map (M1), plots and owners (M2), negotiation (M3), and redevelopment:
-demolish what you bought, draw roads and place buildings on land you fully own.
+**Status: Milestone 5**: map (M1), plots and owners (M2), negotiation (M3), redevelopment (M4),
+and the economy: monthly income, costs, bank loans, building permits, promises to former owners,
+and save/load.
 
 ## Quick start
 
@@ -68,6 +69,30 @@ outline), and the building must be within 4 m of a drivable road. Your land is h
 while a tool is active. Cost is paid up front; construction takes in-game days (a house 45, an
 apartment tower 300). Tick developer mode for an "Add money" button when testing big projects.
 
+### Money
+
+Click the money in the top bar for the **Finances** panel. Every month (on the 1st):
+
+- **Income**: houses, offices and parking are rented out; ruko rows and malls lease shop units;
+  apartment towers sell units month by month (≈1.7× their construction cost in total). Occupancy
+  and sales pace grow with your reputation and with parks, mosques, schools and halls you build
+  nearby. Old houses you bought but haven't demolished bring in a little rent.
+- **Costs**: loan interest, maintenance (0.6%/yr of building cost), land tax (0.2%/yr of land value).
+  Going below zero costs an overdraft penalty and reputation.
+- **Loans**: borrow against half the value of your land and buildings (plus a small unsecured line).
+  The rate is 7%/yr with a good reputation, up to ~16% with a bad one. Repay any time.
+- **Permits**: buildings of 3+ floors or 900+ m² wait for a permit (shorter with a good reputation)
+  and are refused below reputation 25. Civic buildings (school, mosque, park, hall) raise reputation.
+- **Promises**: a promised apartment is handed over when your next apartment tower opens; a promised
+  shop unit when a mall or ruko row opens. Promises not kept within two years are broken (reputation −5).
+
+### Saving
+
+**☰ Game** in the top bar: three save slots plus an automatic save every month (stored in this
+browser), **Download save file** / **Load save file…** to keep or move saves, and **New game**.
+A save is a small JSON file (a few KB) of what changed; the neighbourhood itself is regenerated
+from the map. Saves remember which map they belong to.
+
 **Land registry.** Every square metre that isn't road or water belongs to exactly one plot: land
 between houses is split between the nearest buildings (up to 10 m), open land becomes 20 m
 state/park/field parcels, and the remaining gaps go to the nearest parcel. So buying neighbouring
@@ -129,7 +154,7 @@ in your browser (IndexedDB / localStorage) per map. Nothing is copied into the p
 | `npm run typecheck` | TypeScript only |
 | `npm run import-map -- …` | OSM importer (see above) |
 | `npm run sample-map` | Regenerate the synthetic sample map |
-| `npm test` | Importer, world generation, negotiation and development tests |
+| `npm test` | Importer, world generation, negotiation, development and economy/save tests |
 
 ## Project plan
 
@@ -164,7 +189,9 @@ src/
     negotiation.ts       the negotiation engine (pure logic, tested in Node)
     LandGrid.ts          1 m raster: ownership, roads, water, buildings (placement rules)
     Development.ts       demolition, roads, buildings, construction progress
-    catalog.ts           building and road types (size, floors, cost, build time)
+    catalog.ts           building and road types (size, floors, cost, build time, income model)
+    Economy.ts           monthly close, income, loans, credit, promises
+    save.ts, saveStore.ts  save/load (JSON) and browser save slots
 ```
 
 ### Data model
@@ -201,5 +228,5 @@ land area × country price × location factor (main road ×1.7, street ×1.0, al
 2. ✅ Plots and owners: click a plot → owner info panel
 3. ✅ Negotiation: offers, counters, refusals, deal options, reputation, neighbor influence, logs
 4. ✅ Demolish, road drawing, placing buildings on owned land
-5. Economy, clock, income, loans, save/load
+5. ✅ Economy, clock, income, loans, save/load
 6. Polish: sound, animation, more building types, district/new-city mode
