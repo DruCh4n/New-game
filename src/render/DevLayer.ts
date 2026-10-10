@@ -4,6 +4,7 @@ import type { NewBuilding } from '../game/Development';
 import { buildingType, roadType, type BuildingTypeId, type RoadTypeId } from '../game/catalog';
 import type { FlatPoints } from '../shared/mapTypes';
 import { centroid } from '../shared/geometry';
+import { hashString } from '../util/random';
 import { shade } from './styles';
 import { RasterOverlay, rgba } from './RasterOverlay';
 import { BUILDING, OWNED } from '../game/LandGrid';
@@ -243,7 +244,28 @@ function drawNewBuilding(b: NewBuilding): Container {
     case 'house':
     case 'hall':
     case 'school': {
-      const col = bt.style === 'school' ? 0xc8743c : bt.style === 'hall' ? 0xb5562f : 0xc4683f;
+      if (bt.style === 'house') {
+        // varied, modern-looking houses so new builds don't all look the same
+        const h = hashString(b.id);
+        const modern = (h % 10) > 4;
+        const roofs = [0xc4683f, 0xa8502f, 0x8a5a3c, 0x55606b, 0x3f454d, 0x6b7a52];
+        const walls = [0xe8e4da, 0xd9d4c7, 0xcdd3d6, 0xe0d2bd, 0xc9ccce];
+        const roof = roofs[h % roofs.length];
+        const wall = walls[(h >> 3) % walls.length];
+        if (modern) {
+          // flat-roofed modern house: walls with a roof slab and a small terrace
+          rect(-hw, -hd, bt.width, bt.depth).fill(wall);
+          rect(-hw, -hd, bt.width, bt.depth).stroke({ width: 0.3, color: shade(wall, 0.8) });
+          rect(-hw + 0.6, -hd + 0.6, bt.width - 1.2, bt.depth * 0.42).fill(shade(roof, 1.05));
+          if ((h >> 6) % 2) rect(hw - bt.width * 0.33, hd - bt.depth * 0.3, bt.width * 0.28, bt.depth * 0.22).fill(0x6f9bc0); // rooftop panel/terrace
+        } else {
+          rect(-hw, -hd, bt.width, hd).fill(roof);
+          rect(-hw, 0, bt.width, hd).fill(shade(roof, 0.8));
+          g.moveTo(-hw, 0).lineTo(hw, 0).stroke({ width: 0.2, color: shade(roof, 0.6) });
+        }
+        break;
+      }
+      const col = bt.style === 'school' ? 0xc8743c : 0xb5562f;
       rect(-hw, -hd, bt.width, hd).fill(col);
       rect(-hw, 0, bt.width, hd).fill(shade(col, 0.8));
       if (bt.style === 'school') rect(-hw * 0.3, -hd - 0.01, hw * 0.6, bt.depth).fill({ color: 0xd8cbb0, alpha: 0.9 });

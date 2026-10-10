@@ -13,6 +13,7 @@ import { canVisit, type Session } from '../game/negotiation';
 import { currentEmotion, renderNegotiation, type NegotiationActions } from './negotiationPanel';
 import { renderChats, renderMeeting, renderMulti, type ChatActions, type MeetingActions } from './chatPanel';
 import { portrait } from './portrait';
+import { buildingArt } from './buildingArt';
 import { unreadRooms } from '../game/messages';
 import { marketMult, rivalOwns, unreadNews } from '../game/events';
 import { renderCity, type CityActions } from './cityPanel';
@@ -212,9 +213,12 @@ export class Hud {
           const vc = g.dev.buildingCost(v.id);
           return `<button class="size ${v.id === this.buildType ? 'active' : ''}" data-bt="${v.id}" title="${t('bt.size', { w: v.width, d: v.depth, floors: v.floors })} · ${money(g.world, vc.cost)}">${v.size}</button>`;
         }).join('')}</div>` : ''}
-        <div class="build-info"><b>${bt.icon} ${tk(`bt.${this.buildType}`)}</b>
-          <small>${t('bt.size', { w: bt.width, d: bt.depth, floors: bt.floors })}</small>
-          <small class="${cost > g.money ? 'bad' : ''}">${t('tool.cost', { cost: money(g.world, cost), days })}</small></div>
+        <div class="build-info">
+          <div class="bldg-pic">${buildingArt(this.buildType, 0, 92)}</div>
+          <div class="bldg-meta"><b>${bt.icon} ${tk(`bt.${this.buildType}`)}</b>
+            <small>${t('bt.size', { w: bt.width, d: bt.depth, floors: bt.floors })}</small>
+            <small class="${cost > g.money ? 'bad' : ''}">${t('tool.cost', { cost: money(g.world, cost), days })}</small></div>
+        </div>
         ${hint}`;
       el.querySelectorAll<HTMLElement>('[data-bt]').forEach((b) => (b.onclick = () => this.cb.setBuildType(b.dataset.bt as BuildingTypeId)));
       const gt = el.querySelector<HTMLInputElement>('#grid-toggle');
@@ -483,6 +487,7 @@ export class Hud {
         <button id="panel-close" class="icon" aria-label="${t('panel.close')}">✕</button>
       </div>
       <h2>${bt.icon} ${tk(`bt.${b.type}`)}</h2>
+      <div class="bldg-pic big">${buildingArt(b.type, b.seed ?? 0, 150)}</div>
       ${b.daysLeft ? `<div class="progress"><i style="width:${pct}%"></i></div>` : ''}
       <dl>
         <dt>${t('nb.status')}</dt><dd>${b.permitDays > 0 ? t('nb.permit', { days: b.permitDays }) : b.daysLeft ? t('nb.building', { pct, days: b.daysLeft }) : t('nb.done')}</dd>

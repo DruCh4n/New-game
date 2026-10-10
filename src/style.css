@@ -598,3 +598,11 @@ table.score-lines td:last-child { text-align: right; font-variant-numeric: tabul
 }
 #install-btn[hidden] { display: none; }
 @media (max-width: 640px) { #install-btn { top: auto; bottom: 60px; right: 8px; } }
+
+/* ---------- building illustrations ---------- */
+.build-info { display: flex; gap: 10px; align-items: center; }
+.build-info .bldg-pic { flex: none; }
+.build-info .bldg-meta { display: flex; flex-direction: column; gap: 1px; }
+.bldg-pic { background: linear-gradient(180deg, #223042, #1a222c); border: 1px solid var(--border); border-radius: 8px; padding: 2px 4px; }
+.bldg-pic.big { display: block; margin: 8px auto; width: fit-content; }
+.bldg-art { display: block; }

@@ -154,6 +154,9 @@ cash squeeze in year one (Hard drops to ~20% of its starting net worth before th
 
 ### Building sizes, grid and sales
 
+- **See what you build.** The build palette shows an **angled picture** of the selected building, and
+  selecting a building you've placed shows the same view — so you see it from the side, not only from
+  above. New houses get varied modern looks so they don't all match the old ones.
 - **Sizes.** The build palette groups buildings by kind; pick a size (S / M / L / XL) for houses,
   shophouses, apartments and boarding houses. Each size has its own footprint, cost and build time.
 - **Snap to grid.** Toggle it in the build palette (or press **G**) to line new buildings up on a

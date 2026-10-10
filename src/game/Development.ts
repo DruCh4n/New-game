@@ -30,6 +30,8 @@ export interface NewBuilding {
   priceLevel?: number;
   /** Units sold directly to walk-in buyers (counts toward sold units). */
   directSales?: number;
+  /** Random seed for visual variety (modern look). */
+  seed?: number;
 }
 
 export type Problem = 'outside' | 'water' | 'onRoad' | 'blocked' | 'notOwned' | 'setback' | 'noRoad' | 'money' | 'tooShort' | 'permit' | 'papers';
@@ -302,7 +304,7 @@ export class Development {
     const poly = this.footprint(type, cx, cy, angle);
     const b: NewBuilding = {
       id: `nb${this.nextId++}`, type, cx, cy, angle, poly, daysLeft: check.days, total: check.days, cost: check.cost,
-      permitDays, occupancy: 0, unitsSold: 0, reserved: 0, incomeLastMonth: 0, priceLevel: 1,
+      permitDays, occupancy: 0, unitsSold: 0, reserved: 0, incomeLastMonth: 0, priceLevel: 1, seed: this.nextId,
     };
     this.buildings.push(b);
     this.grid.setPolygon(poly, NEWBLD, true);
