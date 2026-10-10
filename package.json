@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "import-map": "tsx scripts/import-osm.ts",
     "sample-map": "tsx scripts/generate-sample.ts",
+    "city-map": "tsx scripts/generate-city.ts",
     "test:import": "tsx scripts/test-import.ts",
     "test:world": "tsx scripts/test-world.ts",
     "test:negotiation": "tsx scripts/test-negotiation.ts",

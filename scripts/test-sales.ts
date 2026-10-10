@@ -8,7 +8,6 @@ import {
   acceptBuyer, counterBuyer, listPrice, marketingActive, monthlyBuyers, priceLevel, runCampaign, setPriceLevel, unitsLeft,
 } from '../src/game/sales.ts';
 import { restore, serialize } from '../src/game/save.ts';
-import { buildingType } from '../src/game/catalog.ts';
 import type { MapData } from '../src/shared/mapTypes.ts';
 
 const map: MapData = JSON.parse(await readFile(new URL('../maps/sample-kampung.json', import.meta.url), 'utf8'));

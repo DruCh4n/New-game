@@ -130,3 +130,15 @@ const start = (id: ScenarioId) => {
 
 assert.equal(SCENARIOS.length, 6);
 console.log('✔ scenario test passed');
+
+// Milestone 12: inheritance grants a starting plot the player owns.
+{
+  const { grantInheritance } = await import('../src/game/scenarios.ts');
+  const g = new Game(new World(map), 'normal');
+  const id = grantInheritance(g);
+  assert.ok(id, 'granted a plot');
+  assert.ok(g.ownsPlot(id!), 'player owns it');
+  assert.equal(g.scenario.inheritedPlot, id);
+  assert.ok(g.papers.checked.has(id!), 'papers known');
+  console.log('inheritance ok:', id);
+}

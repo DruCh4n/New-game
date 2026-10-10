@@ -369,6 +369,7 @@ const en: DialogueTable = {
   'buyer.walk': ['That\'s too much for me. I\'ll keep looking, sorry.', 'No, we\'re too far apart. Good day.'],
   'player.counter': ['You hold at the list price ({factor}%).'],
   'player.declineBuyer': ['You politely tell them it isn\'t the right fit.'],
+  'system.inherited': ['You inherited this house from your family.'],
   'system.visit': ['Visit {n}'],
   'system.sold': ['Sold to you for {price}.'],
 };
@@ -687,6 +688,7 @@ const id: DialogueTable = {
   'buyer.walk': ['Terlalu mahal buat saya. Saya cari yang lain dulu, maaf.', 'Tidak, terlalu jauh selisihnya. Permisi.'],
   'player.counter': ['Anda bertahan di harga daftar ({factor}%).'],
   'player.declineBuyer': ['Anda dengan sopan bilang ini kurang cocok.'],
+  'system.inherited': ['Anda mewarisi rumah ini dari keluarga.'],
   'system.visit': ['Kunjungan {n}'],
   'system.sold': ['Dijual kepada Anda seharga {price}.'],
 };

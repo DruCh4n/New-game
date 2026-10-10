@@ -68,6 +68,8 @@ export interface ScenarioState {
   lowRepMonths: number;
   /** Tutorial progress (step index) and the plot the tutorial is about. */
   tutorialStep: number;
+  /** Plot id the player starts owning (inheritance), if any. */
+  inheritedPlot?: string;
   tutorialPlot?: string;
   tutorialExtra?: string;
   /** After an ending the player may keep playing freely. */
@@ -149,6 +151,24 @@ export function checkObjectives(game: Game) {
   const winNow = prog.every((p) => p.done);
   if (winNow) return end(game, 'won');
   if (sc.days && game.day >= sc.days) end(game, 'lost', 'deadline');
+}
+
+/** New game with inherited land: give the player a family house to start from, mortgage-free. */
+export function grantInheritance(game: Game): string | null {
+  const w = game.world;
+  const cx = w.grid.minX + w.grid.w / 2, cy = w.grid.minY + w.grid.h / 2;
+  const candidates = w.plots.filter((p) => p.category === 'house' && p.road && p.road.distance < 6
+    && w.ownerOf(p).kind === 'person' && w.ownerOf(p).plotIds.length === 1 && !game.ownsPlot(p.id));
+  if (!candidates.length) return null;
+  candidates.sort((a, b) => Math.hypot(a.cx - cx, a.cy - cy) - Math.hypot(b.cx - cx, b.cy - cy));
+  const plot = candidates[Math.min(3, candidates.length - 1)];
+  const owner = w.ownerOf(plot);
+  game.setStatus([plot.id], 'sold');
+  game.soldOwners.add(owner.id);
+  game.papers.checked.add(plot.id);
+  game.scenario.inheritedPlot = plot.id;
+  game.record(owner.id).log.push({ day: 0, who: 'system', key: 'system.inherited' });
+  return plot.id;
 }
 
 export function retire(game: Game) {

@@ -10,7 +10,7 @@ import { PlotLayer, type Lens } from './render/PlotLayer';
 import { lastMap, listBundledMaps, listMaps, loadMapFile, rememberMap, saveImportedMap } from './map/mapStore';
 import type { BBox } from './shared/mapTypes';
 import type { DifficultyId } from './game/balance';
-import { continuePlaying, computeScore, newScenarioState, recordScore, retire, scenario, TUTORIAL_STEPS, type ScenarioId } from './game/scenarios';
+import { continuePlaying, computeScore, grantInheritance, newScenarioState, recordScore, retire, scenario, TUTORIAL_STEPS, type ScenarioId } from './game/scenarios';
 import { prepareTutorial, restoreTutorial } from './game/tutorialSetup';
 import { Tutorial } from './ui/tutorial';
 import { renderEnd, renderGoals, renderWelcome } from './ui/scenarioUi';
@@ -131,13 +131,13 @@ async function boot() {
   let goalsDay = -1;
   let scoreRecordedFor = '';
 
-  async function show(loader: () => Promise<MapData>, key: string, save?: SaveData, difficulty: DifficultyId = 'normal', scenarioId: ScenarioId = 'sandbox') {
+  async function show(loader: () => Promise<MapData>, key: string, save?: SaveData, difficulty: DifficultyId = 'normal', scenarioId: ScenarioId = 'sandbox', inheritance = false) {
     hud.showLoading(t('loading'));
     try {
       const m = await loader();
       await new Promise((r) => setTimeout(r, 30)); // let the loading message paint before heavy work
       const g = save ? restore(save, m) : new Game(new World(m), difficulty);
-      if (!save) g.scenario = newScenarioState(g, scenarioId);
+      if (!save) { g.scenario = newScenarioState(g, scenarioId); if (inheritance && scenarioId !== 'tutorial') grantInheritance(g); }
       const w = g.world;
       currentKey = key;
       currentLoader = () => Promise.resolve(m);
@@ -639,12 +639,12 @@ async function boot() {
     game?.setSpeed(0);
     const el = document.getElementById('welcome')!;
     renderWelcome(el, maps, currentKey, slotMeta('auto'), !!game, {
-      start: (id, key) => {
+      start: (id, key, inheritance) => {
         el.hidden = true;
         const entry = maps.find((m) => m.key === key) ?? maps[0];
         rememberMap(entry.key);
         hud.setMaps(maps, entry.key);
-        void show(entry.load, entry.key, undefined, scenario(id).difficulty, id).then(() => game?.setSpeed(1));
+        void show(entry.load, entry.key, undefined, scenario(id).difficulty, id, inheritance).then(() => game?.setSpeed(1));
       },
       continueGame: () => {
         const d = readSlot('auto');

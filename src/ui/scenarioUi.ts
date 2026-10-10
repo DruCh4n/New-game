@@ -89,7 +89,7 @@ export function renderEnd(el: HTMLElement, g: Game, mapName: string, a: EndActio
 // ------------------------------------------------------------------ welcome screen
 
 export interface WelcomeActions {
-  start(scenario: ScenarioId, mapKey: string): void;
+  start(scenario: ScenarioId, mapKey: string, inheritance: boolean): void;
   continueGame(): void;
   close(): void;
 }
@@ -121,6 +121,7 @@ export function renderWelcome(el: HTMLElement, maps: MapEntry[], mapKey: string,
       </div>
       <div class="welcome-foot">
         <label>${t('menu.map')} <select id="w-map">${maps.map((m) => `<option value="${esc(m.key)}" ${m.key === mapKey ? 'selected' : ''}>${esc(m.label)}</option>`).join('')}</select></label>
+        <label class="check inh"><input id="w-inherit" type="checkbox" checked/> ${t('menu.inheritance')}</label>
         <button id="w-start" class="primary">${t('menu.start')} →</button>
       </div>
       <h3>${t('menu.best')}</h3>
@@ -131,7 +132,7 @@ export function renderWelcome(el: HTMLElement, maps: MapEntry[], mapKey: string,
     chosen = b.dataset.sc as ScenarioId;
     el.querySelectorAll('.sc-card').forEach((c) => c.classList.toggle('active', (c as HTMLElement).dataset.sc === chosen));
   }));
-  q('#w-start')!.onclick = () => a.start(chosen, q<HTMLSelectElement>('#w-map')!.value);
+  q('#w-start')!.onclick = () => a.start(chosen, q<HTMLSelectElement>('#w-map')!.value, q<HTMLInputElement>('#w-inherit')!.checked);
   q('#w-continue')?.addEventListener('click', a.continueGame);
   q('#w-close')?.addEventListener('click', a.close);
   q<HTMLSelectElement>('#w-lang')!.onchange = (e) => setLang((e.target as HTMLSelectElement).value as never);

@@ -118,6 +118,16 @@ build a tower with a loan, sell units, repeat) and prints cash, debt and net wor
 results on the sample map: Easy ≈ Rp 63 B → 235 B, Normal ≈ 42 B → 128 B, Hard ≈ 35 B → 101 B, with a
 cash squeeze in year one (Hard drops to ~20% of its starting net worth before the first tower sells).
 
+### A bigger map and inheritance
+
+- **Kota Besar** is a much larger synthetic town (2 km × 2 km, ~4 km², over 16,000 buildings) with a
+  tiled street grid, arterials, a river and scattered parks and paddy fields. Pick it from the map
+  dropdown or the start screen. It is heavier to load and best with hardware graphics; the sample
+  kampung stays the quick default. Generate it (or a custom size) with `npm run city-map [halfMetres]`.
+- **Inherited land.** On the start screen, "Start with inherited family land" (on by default) gives you
+  a family house to begin from, mortgage-free, instead of only cash — so you start as a small
+  landowner. It doesn't apply to the tutorial.
+
 ### Building sizes, grid and sales
 
 - **Sizes.** The build palette groups buildings by kind; pick a size (S / M / L / XL) for houses,
@@ -356,8 +366,8 @@ land area × country price × location factor (main road ×1.7, street ×1.0, al
 11. ✅ Builder and sales: size variants (house S–XL, shophouses, apartments, kost), a snap-to-grid
     toggle, demolishing roads enclosed by your land, and a sales office with per-building price
     levels, marketing campaigns and walk-in buyers you haggle with
-12. Bigger world and an inheritance start: much larger maps, starting with inherited family land, and a
-    campaign across neighbourhoods
+12. ✅ Bigger world and an inheritance start: a 4 km² tiled town (16k+ buildings), and the option to
+    start a game already owning a plot of inherited family land
 13. Living city: residents and shops, events (floods, booms, crashes, elections), a rival developer,
     news and protests
 14. Phone and touch: touch controls, phone layout, installable offline app
