@@ -135,6 +135,8 @@ async function boot() {
     hud.showLoading(t('loading'));
     try {
       const m = await loader();
+      if (m.buildings.length > 6000) hud.showLoading(t('loading.big'));
+      await new Promise((r) => setTimeout(r, 40)); // paint the "big map" notice before the heavy build
       await new Promise((r) => setTimeout(r, 30)); // let the loading message paint before heavy work
       const g = save ? restore(save, m) : new Game(new World(m), difficulty);
       if (!save) { g.scenario = newScenarioState(g, scenarioId); if (inheritance && scenarioId !== 'tutorial') grantInheritance(g); }
