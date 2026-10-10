@@ -6,6 +6,7 @@ import {
   buyerPrice, campaignCost, listPrice, marketingActive, priceLevel, unitsLeft, buyerFace,
   type BuyerLead,
 } from '../game/sales';
+import { marketMult } from '../game/events';
 import { dialogue } from '../i18n/dialogue';
 import { esc, money } from './format';
 import { portrait, emotionForMood } from './portrait';
@@ -47,7 +48,7 @@ export function renderSales(el: HTMLElement, game: Game, a: SalesActions) {
     const left = unitsLeft(b);
     const detail = sale
       ? `${t('sales.unitsLeft', { n: left, total: bt.units })} · ${money(w, listPrice(b))}/${t('sales.unit')}`
-      : `${Math.round(b.occupancy * 100)}% · ${money(w, monthlyIncome(b, game.difficulty.income))}/${t('sales.mo')}`;
+      : `${Math.round(b.occupancy * 100)}% · ${money(w, monthlyIncome(b, game.difficulty.income, marketMult(game)))}/${t('sales.mo')}`;
     return `<li class="sale-row" data-focus="${b.id}">
       <div class="sale-head"><b>${bt.icon} ${tk(`bt.${b.type}`)}</b><small>${detail}</small></div>
       <div class="price-ctl">

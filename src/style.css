@@ -534,3 +534,19 @@ table.score-lines td:last-child { text-align: right; font-variant-numeric: tabul
 .buyer-offer small { color: var(--muted); font-size: 11px; }
 #sales-btn.active { background: var(--accent); color: #1b1f26; border-color: var(--accent); }
 .welcome-foot .inh { font-size: 12px; color: var(--muted); display: flex; gap: 6px; align-items: center; }
+
+/* ---------- Milestone 13: city / events / rival ---------- */
+.market { display: flex; align-items: center; gap: 8px; border-radius: 8px; padding: 8px 10px; margin: 6px 0; border: 1px solid var(--border); }
+.market b { display: block; font-size: 13px; } .market span { font-size: 12px; color: var(--muted); }
+.market-boom { background: #1f3326; border-color: #2f5a3d; } .market-boom span { color: #8fd18a; }
+.market-crash { background: #332020; border-color: #6b3330; } .market-crash span { color: #f0b3ae; }
+.events-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.events-list li { display: flex; gap: 8px; align-items: center; }
+.events-list .ev-ic { font-size: 18px; }
+.events-list b { font-size: 13px; } .events-list small { display: block; color: var(--muted); font-size: 11px; }
+.rival-box { display: flex; justify-content: space-between; align-items: center; background: #241f33; border: 1px solid #473a5e; border-radius: 8px; padding: 8px 10px; }
+.rival-box b { font-size: 13px; } .rival-box small { display: block; color: var(--muted); font-size: 11px; }
+.owned.rival { background: #241f33; border-color: #473a5e; color: #c7b3e0; }
+.news li.good { color: #8fd18a; }
+#city-btn.active { background: var(--accent); color: #1b1f26; border-color: var(--accent); }
+.hint.warn { color: var(--danger); }

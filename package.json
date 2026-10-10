@@ -22,8 +22,9 @@
     "test:papers": "tsx scripts/test-papers.ts",
     "test:building": "tsx scripts/test-building.ts",
     "test:sales": "tsx scripts/test-sales.ts",
+    "test:events": "tsx scripts/test-events.ts",
     "sim": "tsx scripts/sim-balance.ts",
-    "test": "npm run test:import && npm run test:world && npm run test:negotiation && npm run test:development && npm run test:economy && npm run test:scenarios && npm run test:people && npm run test:papers && npm run test:building && npm run test:sales"
+    "test": "npm run test:import && npm run test:world && npm run test:negotiation && npm run test:development && npm run test:economy && npm run test:scenarios && npm run test:people && npm run test:papers && npm run test:building && npm run test:sales && npm run test:events"
   },
   "dependencies": {
     "pixi.js": "^8.22.0"

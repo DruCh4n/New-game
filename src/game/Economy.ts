@@ -7,6 +7,7 @@ import type { Game, Obligation } from './Game';
 import type { NewBuilding } from './Development';
 import { districtBonus } from './District';
 import { demandFactor, listPrice, marketingBoost, priceLevel } from './sales';
+import { eventDemand, marketMult } from './events';
 import { BALANCE } from './balance';
 
 export interface Loan {
@@ -112,16 +113,16 @@ export function demand(game: Game, b: NewBuilding): number {
     if (o === b || o.daysLeft > 0 || buildingType(o.type).income !== 'civic') continue;
     if (Math.hypot(o.cx - b.cx, o.cy - b.cy) < 250) amenities += 0.05;
   }
-  return 0.6 + game.reputation / 250 + Math.min(0.2, amenities) + districtBonus(game, b) + marketingBoost(game);
+  return (0.6 + game.reputation / 250 + Math.min(0.2, amenities) + districtBonus(game, b) + marketingBoost(game)) * eventDemand(game);
 }
 
 /** Expected monthly income of a finished building at its current occupancy / sales pace. */
-export function monthlyIncome(b: NewBuilding, incomeMult = 1): number {
+export function monthlyIncome(b: NewBuilding, incomeMult = 1, market = 1): number {
   const bt = buildingType(b.type);
   if (b.daysLeft > 0 || b.permitDays > 0) return 0;
   if (bt.income === 'rent' || bt.income === 'lease') {
     const lettable = bt.units ? (bt.units - b.reserved) / bt.units : 1;
-    return r0(((b.cost * bt.yield) / 12) * b.occupancy * lettable * incomeMult * priceLevel(b));
+    return r0(((b.cost * bt.yield) / 12) * b.occupancy * lettable * incomeMult * priceLevel(b) * market);
   }
   return 0;
 }
@@ -169,7 +170,7 @@ export function closeMonth(game: Game): MonthReport {
     if (bt.income === 'rent' || bt.income === 'lease') {
       const target = Math.min(0.97, (0.45 + 0.45 * d) * demandFactor(b));
       b.occupancy = Math.min(Math.max(target, b.occupancy * 0.9), b.occupancy + 0.12 * d * demandFactor(b));
-      const v = monthlyIncome(b, game.difficulty.income);
+      const v = monthlyIncome(b, game.difficulty.income, marketMult(game));
       if (bt.income === 'rent') income.rent += v;
       else income.leases += v;
       b.incomeLastMonth = v;
@@ -177,7 +178,7 @@ export function closeMonth(game: Game): MonthReport {
       const left = bt.units - b.reserved - b.unitsSold - (b.directSales ?? 0);
       const sold = Math.min(left, Math.max(left > 0 ? 1 : 0, Math.round(bt.units * BALANCE.apartmentSalesPace * d * demandFactor(b))));
       b.unitsSold += sold;
-      const v = Math.round(sold * listPrice(b) * game.difficulty.income);
+      const v = Math.round(sold * listPrice(b) * game.difficulty.income * marketMult(game));
       income.sales += v;
       b.incomeLastMonth = v;
     } else {

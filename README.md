@@ -118,6 +118,20 @@ build a tower with a loan, sell units, repeat) and prints cash, debt and net wor
 results on the sample map: Easy ≈ Rp 63 B → 235 B, Normal ≈ 42 B → 128 B, Hard ≈ 35 B → 101 B, with a
 cash squeeze in year one (Hard drops to ~20% of its starting net worth before the first tower sells).
 
+### The living city
+
+- **📰 City** (top bar): the property market (a boom raises prices and income, a slump lowers them),
+  what's happening right now, the rival developer, and a news feed.
+- **Events** fire over time: property **booms** and **slumps** (prices and demand swing), **floods**
+  along the river (buildings there lose tenants for a season), **elections** (city hall slows down),
+  and **festivals** (reputation and goodwill). Market swings change how much owners ask and how well
+  your buildings sell.
+- **Protests.** If your reputation falls very low, residents protest and new building permits are
+  frozen for a month.
+- **Rival developer.** A company (e.g. PT Maju Jaya) quietly buys houses over time, often near your
+  land. Plots it owns aren't for sale to you — race it for the blocks you want. See its holdings from
+  the City panel; in the Plots view its land shows in purple.
+
 ### A bigger map and inheritance
 
 - **Kota Besar** is a much larger synthetic town (2 km × 2 km, ~4 km², over 16,000 buildings) with a
@@ -368,6 +382,6 @@ land area × country price × location factor (main road ×1.7, street ×1.0, al
     levels, marketing campaigns and walk-in buyers you haggle with
 12. ✅ Bigger world and an inheritance start: a 4 km² tiled town (16k+ buildings), and the option to
     start a game already owning a plot of inherited family land
-13. Living city: residents and shops, events (floods, booms, crashes, elections), a rival developer,
-    news and protests
+13. ✅ Living city: property booms and slumps, floods, elections and festivals, protests that freeze
+    permits, a rival developer who competes for land, and a City news panel
 14. Phone and touch: touch controls, phone layout, installable offline app

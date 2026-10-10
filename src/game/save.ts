@@ -14,6 +14,7 @@ import type { ScenarioState } from './scenarios';
 import type { Meeting } from './meeting';
 import type { PapersSave } from './papers';
 import type { SalesSave } from './sales';
+import type { EventsSave } from './events';
 
 export const SAVE_FORMAT = 'kotabaru-save';
 export const SAVE_VERSION = 1;
@@ -51,6 +52,8 @@ export interface SaveData {
   papers?: PapersSave;
   /** Added in Milestone 11. */
   sales?: SalesSave;
+  /** Added in Milestone 13. */
+  events?: EventsSave;
 }
 
 export function serialize(game: Game, mapKey: string): SaveData {
@@ -80,6 +83,7 @@ export function serialize(game: Game, mapKey: string): SaveData {
     meetings: game.meetings,
     papers: game.papers.serialize(),
     sales: game.sales.serialize(game),
+    events: game.events.serialize(),
     zones: encodeZones(game.zones),
   };
 }
@@ -113,6 +117,7 @@ export function restore(save: SaveData, map: MapData): Game {
   if (save.meetings) game.meetings.push(...save.meetings);
   if (save.papers) game.papers.restore(save.papers);
   if (save.sales) game.sales.restore(game, save.sales);
+  if (save.events) game.events.restore(save.events);
   game.speed = 0; // start paused after loading
   return game;
 }

@@ -9,6 +9,7 @@ import { Rng, hashString } from '../util/random';
 import type { Game } from './Game';
 import type { Owner, Plot, RelationKind } from './types';
 import { afterPurchase, heirsBlock } from './papers';
+import { marketMult, rivalOwns } from './events';
 
 export type DealOption = 'moving' | 'relocation' | 'apartment' | 'shop';
 export const DEAL_OPTIONS: DealOption[] = ['moving', 'relocation', 'apartment', 'shop'];
@@ -168,7 +169,7 @@ export function minimumPrice(game: Game, o: Owner, value: number): number {
   const neighbors = 1 - 0.2 * neighborsSoldShare(game, o).share;
   const ph = (hashString(o.id) % 1000) / 159;
   const drift = 1 + 0.05 * Math.sin(game.day / 17 + ph) + 0.03 * Math.sin(game.day / 41 + ph * 2);
-  return value * base * mood * rep * neighbors * drift;
+  return value * base * mood * rep * neighbors * drift * marketMult(game);
 }
 
 /** Word spreads: neighbours' mood drops after insults or pressure. */
@@ -186,10 +187,11 @@ function moodKey(o: Owner) {
 
 // ------------------------------------------------------------------ actions
 
-export type VisitBlock = 'cooldown' | 'angry' | 'sold' | null;
+export type VisitBlock = 'cooldown' | 'angry' | 'sold' | 'rival' | null;
 
 export function canVisit(game: Game, plot: Plot): { block: VisitBlock; days?: number } {
   const o = game.world.ownerOf(plot);
+  if (rivalOwns(game, plot.id)) return { block: 'rival' };
   if (dealScope(game, plot).length === 0) return { block: 'sold' };
   const rec = game.record(o.id);
   if (game.day < rec.cooldownUntil) return { block: o.mood < 12 ? 'angry' : 'cooldown', days: rec.cooldownUntil - game.day };

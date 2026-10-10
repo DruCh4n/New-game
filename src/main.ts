@@ -159,6 +159,7 @@ async function boot() {
         if (e === 'scenario') onScenario(g);
         if (e === 'papers' && (hud.panel === 'office' || hud.panel === 'info')) hud.refreshPanel();
         if (e === 'sales' && hud.panel === 'sales') hud.refreshPanel();
+        if (e === 'events') { hud.updateChatBadge(); if (hud.panel === 'city') hud.refreshPanel(); plotLayer.redrawLens(); }
         if (e === 'sales' && game && game.sales.leads.some((l) => !l.ended) && hud.panel !== 'sales') hud.updateStats();
         if (e === 'month') {
           writeSlot('auto', serialize(g, currentKey));
@@ -183,6 +184,7 @@ async function boot() {
       renderer.setMap(m);
       renderer.highlights.addChild(plotLayer.container);
       plotLayer.setWorld(w);
+      plotLayer.rivalOf = (id) => g.events.rival.owned.includes(id);
       terrain?.destroy();
       terrain = new Terrain(w);
       terrainVersion = '';
@@ -482,6 +484,17 @@ async function boot() {
       papers: {
         check: (id) => { const p = world?.plot(id); if (p && game && checkPapers(game, p)) { hud.refreshPanel(); hud.updateStats(); } },
         route: (id, kind) => { const p = world?.plot(id); if (p && game && startRoute(game, p, kind)) { sound.play('click'); hud.refreshPanel(); hud.updateStats(); } },
+      },
+      city: {
+        focusRival: () => {
+          const ids = game?.events.rival.owned ?? [];
+          if (!ids.length || !world || !game) return;
+          const b = { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity };
+          for (const id of ids) { const p = world.plot(id); if (!p) continue; b.minX = Math.min(b.minX, p.cx - 20); b.maxX = Math.max(b.maxX, p.cx + 20); b.minY = Math.min(b.minY, p.cy - 20); b.maxY = Math.max(b.maxY, p.cy + 20); }
+          setLens('plots');
+          camera.fitBounds(b, 60, false);
+        },
+        close: () => hud.openPanel('info'),
       },
       sales: {
         setPrice: (id, lvl) => { const b = game?.dev.buildings.find((x) => x.id === id); if (b && game) setPriceLevel(game, b, lvl); },

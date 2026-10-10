@@ -15,6 +15,7 @@ import type { Meeting, MeetingSession } from './meeting';
 import { monthlyMessages } from './messages';
 import { Papers, papersDaily, registerOfficials, serviceActive } from './papers';
 import { Sales, monthlyBuyers } from './sales';
+import { Events, maybeProtest, monthlyEvents, permitsBlocked, rivalTurn } from './events';
 
 export type Speed = 0 | 1 | 2 | 4 | 8;
 /** Real seconds per in-game day at 1× speed. */
@@ -59,7 +60,7 @@ export interface Toast {
   params?: Record<string, string | number>;
 }
 
-export type GameEvent = 'day' | 'money' | 'status' | 'session' | 'speed' | 'dev' | 'month' | 'scenario' | 'papers' | 'sales';
+export type GameEvent = 'day' | 'money' | 'status' | 'session' | 'speed' | 'dev' | 'month' | 'scenario' | 'papers' | 'sales' | 'events';
 
 /** Mutable game state on top of the generated World. */
 export class Game {
@@ -76,6 +77,8 @@ export class Game {
   readonly papers = new Papers();
   /** Sales, marketing campaigns and walk-in buyers (Milestone 11). */
   readonly sales = new Sales();
+  /** City events, news and the rival developer (Milestone 13). */
+  readonly events: Events;
   readonly records = new Map<string, OwnerRecord>();
   readonly soldOwners = new Set<string>();
   readonly obligations: Obligation[] = [];
@@ -104,6 +107,7 @@ export class Game {
     this.dev.paperBlock = (k) => this.papers.registering.has(world.plots[k].id);
     this.zones = new Uint8Array(world.grid.w * world.grid.h);
     this.scenario = { id: 'sandbox', startCash: this.money, outcome: 'playing', overdueMonths: 0, lowRepMonths: 0, tutorialStep: 0, continued: false };
+    this.events = new Events(world.seed);
     this.dev.onChange = (_e, detail) => {
       if (detail?.kind === 'building') {
         this.toast({ kind: 'good', key: 'toast.built', params: { buildingId: detail.id } });
@@ -137,7 +141,7 @@ export class Game {
   /** Permit wait in days for a building type, or null if the city refuses (poor reputation). */
   permitDays(type: BuildingTypeId): number | null {
     if (!needsPermit(buildingType(type))) return 0;
-    if (this.reputation < 25) return null;
+    if (this.reputation < 25 || permitsBlocked(this)) return null;
     return Math.round((7 + (100 - this.reputation) * 0.35) * this.difficulty.permitDays * (serviceActive(this, 'camat') ? 0.5 : 1));
   }
 
@@ -205,6 +209,9 @@ export class Game {
       monthlyRules(this);
       monthlyMessages(this);
       monthlyBuyers(this);
+      monthlyEvents(this);
+      maybeProtest(this);
+      rivalTurn(this);
       checkObjectives(this);
       this.emit('month');
       this.toast({ kind: report.net >= 0 ? 'good' : 'bad', key: 'toast.month', params: { price: report.net } });

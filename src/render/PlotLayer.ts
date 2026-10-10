@@ -44,6 +44,8 @@ export class PlotLayer {
   private hovered: Plot | null = null;
   private selected: Plot | null = null;
   private multi: Plot[] = [];
+  /** Returns true if a plot is owned by the rival (set from main). */
+  rivalOf: (id: string) => boolean = () => false;
   private lastZoom = 0;
   private outlines = new Map<string, number[]>();
 
@@ -119,6 +121,7 @@ export class PlotLayer {
       }
     } else {
       for (const p of w.plots) {
+        if (this.rivalOf(p.id)) { fill[p.index] = rgba(0x8b5bbf, 0.42); edge[p.index] = rgba(0xb98be0, 1); continue; }
         const s = w.statusOf(p.id);
         const base = s !== 'not_approached' ? STATUS_COLORS[s] : p.kind === 'land' ? LAND_COLORS[p.category] ?? 0x888888 : 0xffffff;
         fill[p.index] = rgba(base, s !== 'not_approached' ? 0.38 : p.kind === 'land' ? 0.3 : 0);
