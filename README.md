@@ -118,6 +118,20 @@ build a tower with a loan, sell units, repeat) and prints cash, debt and net wor
 results on the sample map: Easy ≈ Rp 63 B → 235 B, Normal ≈ 42 B → 128 B, Hard ≈ 35 B → 101 B, with a
 cash squeeze in year one (Hard drops to ~20% of its starting net worth before the first tower sells).
 
+### Building sizes, grid and sales
+
+- **Sizes.** The build palette groups buildings by kind; pick a size (S / M / L / XL) for houses,
+  shophouses, apartments and boarding houses. Each size has its own footprint, cost and build time.
+- **Snap to grid.** Toggle it in the build palette (or press **G**) to line new buildings up on a
+  tidy grid aligned to the nearest road.
+- **Demolish enclosed roads.** Once you own all the land around a road, you can demolish it with the
+  ⛏ tool and absorb it into your plot. Major roads and rail are protected.
+- **📈 Sales** (top bar): for each finished building, set a **price level** (80–130%). A higher price
+  earns more per unit but sells and fills more slowly; a lower price does the opposite. Run a
+  **marketing campaign** (120 days) for faster sales and more buyers. **Walk-in buyers** arrive from
+  time to time — they have a face and an opening offer, and you can accept, counter at the list price,
+  or send them away.
+
 ### Land papers and the land office
 
 - **Papers.** Every plot has papers: an SHM or HGB certificate, an old girik, only a sale deed (AJB),
@@ -339,9 +353,9 @@ land area × country price × location factor (main road ×1.7, street ×1.0, al
 10. ✅ Land papers (SHM/HGB/girik/AJB, inheritance disputes, no papers, overlapping claims), checking
     papers, registration after buying, legal routes (notary, court, city clearance), officials with
     paid services, a land office panel with cases and headlines, and a "My land" view
-11. Builder and sales: build grid with snapping, building variants and sizes (house types, floors),
-    demolishing roads enclosed by your land, a sales and marketing office with prices, campaigns and
-    buyer characters
+11. ✅ Builder and sales: size variants (house S–XL, shophouses, apartments, kost), a snap-to-grid
+    toggle, demolishing roads enclosed by your land, and a sales office with per-building price
+    levels, marketing campaigns and walk-in buyers you haggle with
 12. Bigger world and an inheritance start: much larger maps, starting with inherited family land, and a
     campaign across neighbourhoods
 13. Living city: residents and shops, events (floods, booms, crashes, elections), a rival developer,

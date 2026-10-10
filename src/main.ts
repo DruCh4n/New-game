@@ -26,6 +26,7 @@ import { acceptCounter, askHelp, giveGift, leave, listen, makeOffer, pressure, s
 import { acceptAsks, communityFund, leaveMeeting, listenAll, offerAll, presentPlan, signAll, startMeeting } from './game/meeting';
 import { resetMeetingDraft } from './ui/chatPanel';
 import { checkPapers, greetOfficial, officialOwnerId, requestService, startRoute } from './game/papers';
+import { acceptBuyer, counterBuyer, dismissBuyer, runCampaign, setPriceLevel } from './game/sales';
 import { resetDraft } from './ui/negotiationPanel';
 import { DevLayer } from './render/DevLayer';
 import { Terrain } from './render/Terrain';
@@ -157,6 +158,8 @@ async function boot() {
         if (e === 'day' || e === 'money' || e === 'speed') hud.updateStats();
         if (e === 'scenario') onScenario(g);
         if (e === 'papers' && (hud.panel === 'office' || hud.panel === 'info')) hud.refreshPanel();
+        if (e === 'sales' && hud.panel === 'sales') hud.refreshPanel();
+        if (e === 'sales' && game && game.sales.leads.some((l) => !l.ended) && hud.panel !== 'sales') hud.updateStats();
         if (e === 'month') {
           writeSlot('auto', serialize(g, currentKey));
           if (hud.panel === 'finance' || hud.panel === 'chats') hud.refreshPanel();
@@ -479,6 +482,15 @@ async function boot() {
       papers: {
         check: (id) => { const p = world?.plot(id); if (p && game && checkPapers(game, p)) { hud.refreshPanel(); hud.updateStats(); } },
         route: (id, kind) => { const p = world?.plot(id); if (p && game && startRoute(game, p, kind)) { sound.play('click'); hud.refreshPanel(); hud.updateStats(); } },
+      },
+      sales: {
+        setPrice: (id, lvl) => { const b = game?.dev.buildings.find((x) => x.id === id); if (b && game) setPriceLevel(game, b, lvl); },
+        campaign: () => { if (game && runCampaign(game)) { sound.play('coin'); hud.refreshPanel(); hud.updateStats(); } },
+        acceptBuyer: (id) => { const l = game?.sales.leads.find((x) => x.id === id); if (l && game && acceptBuyer(game, l)) { sound.play('coin'); hud.refreshPanel(); hud.updateStats(); } },
+        counterBuyer: (id, f) => { const l = game?.sales.leads.find((x) => x.id === id); if (l && game) { counterBuyer(game, l, f); sound.play('talk'); hud.refreshPanel(); hud.updateStats(); } },
+        dismissBuyer: (id) => { const l = game?.sales.leads.find((x) => x.id === id); if (l && game) { dismissBuyer(game, l); hud.refreshPanel(); } },
+        focus: (id) => { const b = game?.dev.buildings.find((x) => x.id === id); if (b) camera.centerOn(b.cx, b.cy, 3); },
+        close: () => hud.openPanel('info'),
       },
       myLand: () => {
         if (plotLayer.lens === 'mine') return setLens('normal');

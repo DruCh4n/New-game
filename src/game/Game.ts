@@ -14,6 +14,7 @@ import { checkObjectives, monthlyRules, type ScenarioState } from './scenarios';
 import type { Meeting, MeetingSession } from './meeting';
 import { monthlyMessages } from './messages';
 import { Papers, papersDaily, registerOfficials, serviceActive } from './papers';
+import { Sales, monthlyBuyers } from './sales';
 
 export type Speed = 0 | 1 | 2 | 4 | 8;
 /** Real seconds per in-game day at 1× speed. */
@@ -58,7 +59,7 @@ export interface Toast {
   params?: Record<string, string | number>;
 }
 
-export type GameEvent = 'day' | 'money' | 'status' | 'session' | 'speed' | 'dev' | 'month' | 'scenario' | 'papers';
+export type GameEvent = 'day' | 'money' | 'status' | 'session' | 'speed' | 'dev' | 'month' | 'scenario' | 'papers' | 'sales';
 
 /** Mutable game state on top of the generated World. */
 export class Game {
@@ -73,6 +74,8 @@ export class Game {
   readonly meetings: Meeting[] = [];
   /** Land papers, officials and legal cases (Milestone 10). */
   readonly papers = new Papers();
+  /** Sales, marketing campaigns and walk-in buyers (Milestone 11). */
+  readonly sales = new Sales();
   readonly records = new Map<string, OwnerRecord>();
   readonly soldOwners = new Set<string>();
   readonly obligations: Obligation[] = [];
@@ -201,6 +204,7 @@ export class Game {
       const report = closeMonth(this);
       monthlyRules(this);
       monthlyMessages(this);
+      monthlyBuyers(this);
       checkObjectives(this);
       this.emit('month');
       this.toast({ kind: report.net >= 0 ? 'good' : 'bad', key: 'toast.month', params: { price: report.net } });

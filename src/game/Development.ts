@@ -26,6 +26,10 @@ export interface NewBuilding {
   /** Units given away to fulfil promises (apartments / shop units). */
   reserved: number;
   incomeLastMonth: number;
+  /** Sales/marketing price level, 0.8–1.3 (Milestone 11). Affects unit price and sales pace. */
+  priceLevel?: number;
+  /** Units sold directly to walk-in buyers (counts toward sold units). */
+  directSales?: number;
 }
 
 export type Problem = 'outside' | 'water' | 'onRoad' | 'blocked' | 'notOwned' | 'setback' | 'noRoad' | 'money' | 'tooShort' | 'permit' | 'papers';
@@ -298,7 +302,7 @@ export class Development {
     const poly = this.footprint(type, cx, cy, angle);
     const b: NewBuilding = {
       id: `nb${this.nextId++}`, type, cx, cy, angle, poly, daysLeft: check.days, total: check.days, cost: check.cost,
-      permitDays, occupancy: 0, unitsSold: 0, reserved: 0, incomeLastMonth: 0,
+      permitDays, occupancy: 0, unitsSold: 0, reserved: 0, incomeLastMonth: 0, priceLevel: 1,
     };
     this.buildings.push(b);
     this.grid.setPolygon(poly, NEWBLD, true);

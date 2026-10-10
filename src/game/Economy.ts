@@ -6,6 +6,7 @@ import { buildingType } from './catalog';
 import type { Game, Obligation } from './Game';
 import type { NewBuilding } from './Development';
 import { districtBonus } from './District';
+import { demandFactor, listPrice, marketingBoost, priceLevel } from './sales';
 import { BALANCE } from './balance';
 
 export interface Loan {
@@ -111,7 +112,7 @@ export function demand(game: Game, b: NewBuilding): number {
     if (o === b || o.daysLeft > 0 || buildingType(o.type).income !== 'civic') continue;
     if (Math.hypot(o.cx - b.cx, o.cy - b.cy) < 250) amenities += 0.05;
   }
-  return 0.6 + game.reputation / 250 + Math.min(0.2, amenities) + districtBonus(game, b);
+  return 0.6 + game.reputation / 250 + Math.min(0.2, amenities) + districtBonus(game, b) + marketingBoost(game);
 }
 
 /** Expected monthly income of a finished building at its current occupancy / sales pace. */
@@ -120,7 +121,7 @@ export function monthlyIncome(b: NewBuilding, incomeMult = 1): number {
   if (b.daysLeft > 0 || b.permitDays > 0) return 0;
   if (bt.income === 'rent' || bt.income === 'lease') {
     const lettable = bt.units ? (bt.units - b.reserved) / bt.units : 1;
-    return r0(((b.cost * bt.yield) / 12) * b.occupancy * lettable * incomeMult);
+    return r0(((b.cost * bt.yield) / 12) * b.occupancy * lettable * incomeMult * priceLevel(b));
   }
   return 0;
 }
@@ -166,17 +167,17 @@ export function closeMonth(game: Game): MonthReport {
     const d = demand(game, b);
     costs.maintenance += (b.cost * BALANCE.maintenance) / 12;
     if (bt.income === 'rent' || bt.income === 'lease') {
-      const target = Math.min(0.97, 0.45 + 0.45 * d);
-      b.occupancy = Math.min(target, b.occupancy + 0.12 * d);
+      const target = Math.min(0.97, (0.45 + 0.45 * d) * demandFactor(b));
+      b.occupancy = Math.min(Math.max(target, b.occupancy * 0.9), b.occupancy + 0.12 * d * demandFactor(b));
       const v = monthlyIncome(b, game.difficulty.income);
       if (bt.income === 'rent') income.rent += v;
       else income.leases += v;
       b.incomeLastMonth = v;
     } else if (bt.income === 'sale') {
-      const left = bt.units - b.reserved - b.unitsSold;
-      const sold = Math.min(left, Math.max(left > 0 ? 1 : 0, Math.round(bt.units * BALANCE.apartmentSalesPace * d)));
+      const left = bt.units - b.reserved - b.unitsSold - (b.directSales ?? 0);
+      const sold = Math.min(left, Math.max(left > 0 ? 1 : 0, Math.round(bt.units * BALANCE.apartmentSalesPace * d * demandFactor(b))));
       b.unitsSold += sold;
-      const v = Math.round(sold * unitPrice(b) * game.difficulty.income);
+      const v = Math.round(sold * listPrice(b) * game.difficulty.income);
       income.sales += v;
       b.incomeLastMonth = v;
     } else {

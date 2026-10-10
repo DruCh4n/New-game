@@ -357,6 +357,18 @@ const en: DialogueTable = {
   'system.case.eviction': ['The city has ordered this land cleared.'],
   'system.case.mediation': ['A notary is mediating with the heirs.'],
   'system.taken': ['The land ({n} plot(s)) passed to you without a sale.'],
+  // ---------- walk-in buyers (Milestone 11) ----------
+  'buyer.greet': [
+    'Good afternoon. I saw your advertisement. The units here look promising.',
+    'Hello. A friend of mine bought here and is happy. What can you offer me?',
+    'I\'ve been looking for a place in this area. Tell me about the price.',
+  ],
+  'buyer.haggle': ['Hmm, that\'s a bit high. Could you do {price}?', 'Can we meet somewhere closer to {price}?', 'For {price} I\'d sign today.'],
+  'buyer.deal': ['Deal! {price} it is. Where do I sign?', 'Alright, {price}. My family will be thrilled.'],
+  'buyer.accept': ['Fine, {price}. You drive a hard bargain, but I\'ll take it.', 'Agreed, {price}. Let\'s do the paperwork.'],
+  'buyer.walk': ['That\'s too much for me. I\'ll keep looking, sorry.', 'No, we\'re too far apart. Good day.'],
+  'player.counter': ['You hold at the list price ({factor}%).'],
+  'player.declineBuyer': ['You politely tell them it isn\'t the right fit.'],
   'system.visit': ['Visit {n}'],
   'system.sold': ['Sold to you for {price}.'],
 };
@@ -663,6 +675,18 @@ const id: DialogueTable = {
   'system.case.eviction': ['Pemkot memerintahkan penertiban tanah ini.'],
   'system.case.mediation': ['Notaris sedang memediasi para ahli waris.'],
   'system.taken': ['Tanah ({n} persil) berpindah ke Anda tanpa jual beli.'],
+  // ---------- pembeli (Milestone 11) ----------
+  'buyer.greet': [
+    'Selamat siang. Saya lihat iklan Anda. Unit di sini kelihatan menjanjikan.',
+    'Halo. Teman saya beli di sini dan puas. Apa yang bisa Anda tawarkan?',
+    'Saya sedang cari tempat di daerah ini. Coba ceritakan soal harganya.',
+  ],
+  'buyer.haggle': ['Hmm, agak tinggi. Bisa {price}?', 'Bisa kita ketemu di sekitar {price}?', 'Kalau {price}, saya tanda tangan hari ini.'],
+  'buyer.deal': ['Deal! {price} ya. Di mana saya tanda tangan?', 'Baik, {price}. Keluarga saya pasti senang.'],
+  'buyer.accept': ['Baiklah, {price}. Anda pintar menawar, tapi saya ambil.', 'Setuju, {price}. Ayo urus suratnya.'],
+  'buyer.walk': ['Terlalu mahal buat saya. Saya cari yang lain dulu, maaf.', 'Tidak, terlalu jauh selisihnya. Permisi.'],
+  'player.counter': ['Anda bertahan di harga daftar ({factor}%).'],
+  'player.declineBuyer': ['Anda dengan sopan bilang ini kurang cocok.'],
   'system.visit': ['Kunjungan {n}'],
   'system.sold': ['Dijual kepada Anda seharga {price}.'],
 };

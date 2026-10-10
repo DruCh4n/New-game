@@ -15,6 +15,7 @@ import { renderChats, renderMeeting, renderMulti, type ChatActions, type Meeting
 import { portrait } from './portrait';
 import { unreadRooms } from '../game/messages';
 import { renderOffice, type OfficeActions } from './officePanel';
+import { renderSales, type SalesActions } from './salesPanel';
 import { caseFor, legalRoutes, paperOf, papersKnown, checkCost, type CaseKind } from '../game/papers';
 import { ROAD_TYPES, buildingGroups, buildingType, variantsOf, type BuildingTypeId, type RoadTypeId } from '../game/catalog';
 import type { NewBuilding } from '../game/Development';
@@ -31,7 +32,7 @@ export type Tool = 'select' | 'demolish' | 'road' | 'build' | 'zone';
 const $ = <T extends HTMLElement>(sel: string) => document.querySelector(sel) as T;
 const hex = (c: number) => `#${c.toString(16).padStart(6, '0')}`;
 
-export type PanelMode = 'info' | 'overlay' | 'talk' | 'finance' | 'game' | 'import' | 'chats' | 'room' | 'meeting' | 'multi' | 'office';
+export type PanelMode = 'info' | 'overlay' | 'talk' | 'finance' | 'game' | 'import' | 'chats' | 'room' | 'meeting' | 'multi' | 'office' | 'sales';
 
 export interface HudCallbacks {
   selectMap(key: string): void;
@@ -56,6 +57,7 @@ export interface HudCallbacks {
   negotiation: NegotiationActions;
   chats: ChatActions;
   office: OfficeActions;
+  sales: SalesActions;
   papers: { check(plotId: string): void; route(plotId: string, kind: CaseKind): void };
   myLand(): void;
   meeting: MeetingActions;
@@ -231,7 +233,7 @@ export class Hud {
   }
 
   /** Chat list, one person's room, a meeting, or the multi-selection. */
-  openRoom(kind: 'chats' | 'room' | 'meeting' | 'multi' | 'office', id?: string) {
+  openRoom(kind: 'chats' | 'room' | 'meeting' | 'multi' | 'office' | 'sales', id?: string) {
     if (kind === 'room') this.roomOwner = id ?? this.roomOwner;
     if (kind === 'meeting') this.roomMeeting = id ?? this.roomMeeting;
     this.panel = kind;
@@ -248,6 +250,7 @@ export class Hud {
     b.innerHTML = `💬 <span class="lbl">${t('chat.title')}</span>${n ? `<i class="badge">${n}</i>` : ''}`;
     b.classList.toggle('active', this.panel === 'chats' || this.panel === 'room' || this.panel === 'meeting');
     document.getElementById('office-btn')?.classList.toggle('active', this.panel === 'office');
+    document.getElementById('sales-btn')?.classList.toggle('active', this.panel === 'sales');
   }
 
   openPanel(mode: 'finance' | 'game' | 'info' | 'import') {
@@ -360,6 +363,7 @@ export class Hud {
       <span class="spacer"></span>
       <button id="chat-btn"></button>
       <button id="office-btn" title="${t('office.title')}">🏛 <span class="lbl">${t('office.title')}</span></button>
+      <button id="sales-btn" title="${t('sales.title')}">📈 <span class="lbl">${t('sales.title')}</span></button>
       <button id="mute" class="icon" title="${t('set.sound')}" aria-label="${t('set.sound')}">${sound.muted ? '🔇' : '🔊'}</button>
       <button id="game-menu">☰ ${t('top.game')}</button>
       <label>${t('top.language')}
@@ -376,6 +380,7 @@ export class Hud {
     $('#game-menu').onclick = () => this.openPanel(this.panel === 'game' ? 'info' : 'game');
     $('#open-import').onclick = () => this.openPanel(this.panel === 'import' ? 'info' : 'import');
     $('#office-btn').onclick = () => (this.panel === 'office' ? this.openPanel('info') : this.openRoom('office'));
+    $('#sales-btn').onclick = () => (this.panel === 'sales' ? this.openPanel('info') : this.openRoom('sales'));
     $('#chat-btn').onclick = () => {
       const inChat = this.panel === 'chats' || this.panel === 'room' || this.panel === 'meeting';
       if (inChat) this.openPanel('info'); else this.openRoom('chats');
@@ -397,6 +402,7 @@ export class Hud {
     }
     if (this.panel === 'chats' && g0) return renderChats(el, g0, this.cb.chats);
     if (this.panel === 'office' && g0) return renderOffice(el, g0, this.cb.office);
+    if (this.panel === 'sales' && g0) return renderSales(el, g0, this.cb.sales);
     if (this.panel === 'room' && g0 && this.roomOwner) return renderNegotiation(el, g0, this.roomOwner, this.session, this.cb.negotiation);
     if (this.panel === 'meeting' && g0 && this.roomMeeting) {
       const m = g0.meetings.find((x) => x.id === this.roomMeeting);
