@@ -239,18 +239,18 @@ function drawNewBuilding(b: NewBuilding): Container {
     rect(-hw + sx, -hd + sy, bt.width, bt.depth).fill({ color: 0x000000, alpha: 0.22 });
   }
 
-  switch (b.type) {
+  switch (bt.style) {
     case 'house':
     case 'hall':
     case 'school': {
-      const col = b.type === 'school' ? 0xc8743c : b.type === 'hall' ? 0xb5562f : 0xc4683f;
+      const col = bt.style === 'school' ? 0xc8743c : bt.style === 'hall' ? 0xb5562f : 0xc4683f;
       rect(-hw, -hd, bt.width, hd).fill(col);
       rect(-hw, 0, bt.width, hd).fill(shade(col, 0.8));
-      if (b.type === 'school') rect(-hw * 0.3, -hd - 0.01, hw * 0.6, bt.depth).fill({ color: 0xd8cbb0, alpha: 0.9 });
+      if (bt.style === 'school') rect(-hw * 0.3, -hd - 0.01, hw * 0.6, bt.depth).fill({ color: 0xd8cbb0, alpha: 0.9 });
       break;
     }
     case 'ruko': {
-      const units = 4, uw = bt.width / units;
+      const units = Math.max(2, Math.round(bt.width / 5)), uw = bt.width / units;
       for (let i = 0; i < units; i++) {
         const col = [0x9a9c9e, 0xc4683f, 0xb6b8b9, 0xa95a38][i % 4];
         rect(-hw + i * uw, -hd, uw, hd).fill(col);

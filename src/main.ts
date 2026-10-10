@@ -69,6 +69,7 @@ async function boot() {
   let buildType: BuildingTypeId = 'house';
   let roadTypeId: RoadTypeId = 'street';
   let rotation = 0; // extra rotation added to the auto road alignment (radians)
+  let gridOn = false;
   let roadPoints: FlatPoints = [];
   let lastClick = { time: 0, x: 0, y: 0 };
   let lastRefresh = { demolished: 0, removed: 0 };
@@ -325,8 +326,9 @@ async function boot() {
     if (r) {
       const orig = dev.originalRoad(r.id)!;
       const ok = dev.canRemoveOriginalRoad(r.id);
-      const removable = ['service', 'path', 'track', 'living_street', 'pedestrian'].includes(orig.kind);
-      return { ok, label: ok ? tk('demo.road') : tk(removable ? 'demo.cantRoad' : 'demo.mainRoad'), line: { line: orig.line, width: orig.width }, act: () => dev.removeRoad(r) };
+      const protectedRoad = ['motorway', 'trunk', 'primary', 'secondary', 'rail'].includes(orig.kind);
+      const label = ok ? tk('demo.road') : protectedRoad ? tk('demo.mainRoad') : tk('demo.encloseRoad');
+      return { ok, label, line: { line: orig.line, width: orig.width }, act: () => dev.removeRoad(r) };
     }
     return null;
   }
@@ -342,6 +344,17 @@ async function boot() {
     return (game?.dev.roadAngle(x, y) ?? 0) + rotation;
   }
 
+  /** With the grid on, snap a building centre to a tidy grid aligned to the road direction. */
+  function snapBuild(cx: number, cy: number, angle: number): [number, number] {
+    if (!gridOn) return [Math.round(cx * 2) / 2, Math.round(cy * 2) / 2];
+    const step = 2; // metres
+    const ca = Math.cos(angle), sa = Math.sin(angle);
+    // rotate into road-aligned frame, round, rotate back
+    const u = cx * ca + cy * sa, v = -cx * sa + cy * ca;
+    const us = Math.round(u / step) * step, vs = Math.round(v / step) * step;
+    return [us * ca - vs * sa, us * sa + vs * ca];
+  }
+
   /** Updates previews for the active tool at a screen position. */
   function previewAt(sx: number, sy: number) {
     if (!game || tool === 'select') return;
@@ -353,7 +366,8 @@ async function boot() {
       return;
     }
     if (tool === 'build') {
-      const cx = Math.round(wx * 2) / 2, cy = Math.round(wy * 2) / 2;
+      const a0 = buildAngle(wx, wy);
+      const [cx, cy] = snapBuild(wx, wy, a0);
       const a = buildAngle(cx, cy);
       const c = dev.buildingCheck(buildType, cx, cy, a);
       devLayer.ghostBuilding(game, buildType, cx, cy, a, c.ok);
@@ -386,7 +400,7 @@ async function boot() {
     const [wx, wy] = camera.screenToWorld(sx, sy);
     if (tool === 'zone') { paint(wx, wy); return true; }
     if (tool === 'build') {
-      const cx = Math.round(wx * 2) / 2, cy = Math.round(wy * 2) / 2;
+      const [cx, cy] = snapBuild(wx, wy, buildAngle(wx, wy));
       const c = game.placeBuilding(buildType, cx, cy, buildAngle(cx, cy));
       if (!c.ok) game.toast({ kind: 'bad', key: 'toast.problem', params: { problem: tk(`prob.${c.problem}`) } });
       else game.toast({ kind: 'info', key: 'toast.placed', params: { cost: c.cost } });
@@ -446,6 +460,7 @@ async function boot() {
       setTool,
       setBuildType: (b) => { buildType = b; rotation = 0; hud.buildType = b; hud.renderPalette(); },
       setRoadType: (r) => { roadTypeId = r; hud.roadType = r; hud.renderPalette(); },
+      setGrid: (on) => { gridOn = on; hud.gridOn = on; hud.renderPalette(); },
       demolishPlot: (id) => { const p = world?.plot(id); if (p && game && game.demolish(p).ok) sound.play('demolish'); },
       removeNewBuilding: (id) => { game?.dev.removeBuilding(id); hud.select(null); },
       addMoney: () => game?.addMoney(game.world.region.landPerM2 * 15000),
@@ -712,6 +727,7 @@ async function boot() {
       if (k === 'n') setTool('road');
       if (k === 'b') setTool('build');
       if (k === 'z') setTool('zone');
+      if (tool === 'build' && k === 'g') { gridOn = !gridOn; hud.gridOn = gridOn; hud.renderPalette(); if (cursor) previewAt(cursor.sx, cursor.sy); }
       if (tool === 'build' && (k === 'r' || k === 'q' || k === 'e')) {
         rotation += k === 'r' ? Math.PI / 2 : k === 'q' ? -Math.PI / 12 : Math.PI / 12;
         if (cursor) previewAt(cursor.sx, cursor.sy);

@@ -89,10 +89,10 @@ export function homesProvided(game: Game): number {
   for (const b of game.dev.buildings) {
     if (b.daysLeft > 0 || b.permitDays > 0) continue;
     const bt = buildingType(b.type);
-    if (b.type === 'apartment') n += b.unitsSold + b.reserved;
-    else if (b.type === 'kost') n += Math.round(bt.units * b.occupancy);
-    else if (b.type === 'house') n += 1;
-    else if (b.type === 'ruko') n += bt.units; // families live above the shops
+    if (bt.style === 'apartment') n += b.unitsSold + b.reserved;
+    else if (bt.style === 'kost') n += Math.round(bt.units * b.occupancy);
+    else if (bt.style === 'house') n += 1;
+    else if (bt.style === 'ruko') n += bt.units; // families live above the shops
   }
   return n;
 }
@@ -104,7 +104,11 @@ export function netWorth(game: Game): number {
 export interface ObjectiveProgress { objective: Objective; value: number; target: number; done: boolean }
 
 export function progress(game: Game, o: Objective, start: number): ObjectiveProgress {
-  const finished = (types: BuildingTypeId[]) => game.dev.buildings.filter((b) => types.includes(b.type) && b.daysLeft === 0 && b.permitDays === 0).length;
+  const groups = (types: BuildingTypeId[]) => new Set(types.map((t) => buildingType(t).group));
+  const finished = (types: BuildingTypeId[]) => {
+    const gs = groups(types);
+    return game.dev.buildings.filter((b) => gs.has(buildingType(b.type).group) && b.daysLeft === 0 && b.permitDays === 0).length;
+  };
   switch (o.kind) {
     case 'buildings': { const v = finished(o.types); return { objective: o, value: v, target: o.count, done: v >= o.count }; }
     case 'homes': { const v = homesProvided(game); return { objective: o, value: v, target: o.count, done: v >= o.count }; }

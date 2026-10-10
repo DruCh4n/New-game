@@ -143,7 +143,7 @@ export function onBuildingFinished(game: Game, b: NewBuilding) {
   }
   if (bt.rep) game.addReputation(bt.rep);
   // Promised apartments go into apartment towers, promised shop units into malls and ruko rows.
-  const kind: Obligation['kind'] | null = b.type === 'apartment' ? 'apartment' : b.type === 'mall' || b.type === 'ruko' || b.type === 'market' ? 'shop' : null;
+  const kind: Obligation['kind'] | null = bt.style === 'apartment' ? 'apartment' : bt.style === 'mall' || bt.style === 'ruko' || bt.style === 'market' ? 'shop' : null;
   if (!kind) return;
   for (const ob of game.obligations) {
     if (ob.kind !== kind || ob.fulfilled !== undefined || ob.broken) continue;

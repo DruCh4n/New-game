@@ -16,7 +16,7 @@ import { portrait } from './portrait';
 import { unreadRooms } from '../game/messages';
 import { renderOffice, type OfficeActions } from './officePanel';
 import { caseFor, legalRoutes, paperOf, papersKnown, checkCost, type CaseKind } from '../game/papers';
-import { BUILDING_TYPES, ROAD_TYPES, buildingType, type BuildingTypeId, type RoadTypeId } from '../game/catalog';
+import { ROAD_TYPES, buildingGroups, buildingType, variantsOf, type BuildingTypeId, type RoadTypeId } from '../game/catalog';
 import type { NewBuilding } from '../game/Development';
 import { demand, monthlyIncome, unitPrice } from '../game/Economy';
 import { renderFinance } from './financePanel';
@@ -45,6 +45,7 @@ export interface HudCallbacks {
   setSpeed(s: Speed): void;
   setTool(t: Tool): void;
   setBuildType(b: BuildingTypeId): void;
+  setGrid(on: boolean): void;
   setRoadType(r: RoadTypeId): void;
   demolishPlot(plotId: string): void;
   removeNewBuilding(id: string): void;
@@ -76,6 +77,7 @@ export class Hud {
   private session: Session | null = null;
   tool: Tool = 'select';
   buildType: BuildingTypeId = 'house';
+  gridOn = false;
   roadType: RoadTypeId = 'street';
   private selectedNew: NewBuilding | null = null;
   life: Life | null = null;
@@ -189,14 +191,29 @@ export class Hud {
     }
     el.hidden = false;
     if (this.tool === 'build') {
-      el.innerHTML = `<div class="cards">${BUILDING_TYPES.map((b) => {
-        const { cost, days } = g.dev.buildingCost(b.id);
-        return `<button class="card ${this.buildType === b.id ? 'active' : ''}" data-bt="${b.id}">
-          <span class="icon">${b.icon}</span><b>${tk(`bt.${b.id}`)}</b>
-          <small>${t('bt.size', { w: b.width, d: b.depth, floors: b.floors })}</small>
-          <small class="${cost > g.money ? 'bad' : ''}">${t('tool.cost', { cost: money(g.world, cost), days })}</small></button>`;
-      }).join('')}</div>${hint}`;
+      const activeGroup = buildingType(this.buildType).group;
+      const variants = variantsOf(this.buildType);
+      const bt = buildingType(this.buildType);
+      const { cost, days } = g.dev.buildingCost(this.buildType);
+      const groups = buildingGroups();
+      el.innerHTML = `
+        <label class="check grid-toggle"><input id="grid-toggle" type="checkbox" ${this.gridOn ? 'checked' : ''}/> ${t('tool.grid')} <kbd>G</kbd></label>
+        <div class="cards">${groups.map((gr) => {
+          const rep = gr.variants.find((v) => v.id === this.buildType) ?? gr.variants[0];
+          return `<button class="card ${gr.group === activeGroup ? 'active' : ''}" data-bt="${rep.id}">
+            <span class="icon">${rep.icon}</span><b>${tk(`grp.${gr.group}`)}</b></button>`;
+        }).join('')}</div>
+        ${variants.length > 1 ? `<div class="sizes">${variants.map((v) => {
+          const vc = g.dev.buildingCost(v.id);
+          return `<button class="size ${v.id === this.buildType ? 'active' : ''}" data-bt="${v.id}" title="${t('bt.size', { w: v.width, d: v.depth, floors: v.floors })} · ${money(g.world, vc.cost)}">${v.size}</button>`;
+        }).join('')}</div>` : ''}
+        <div class="build-info"><b>${bt.icon} ${tk(`bt.${this.buildType}`)}</b>
+          <small>${t('bt.size', { w: bt.width, d: bt.depth, floors: bt.floors })}</small>
+          <small class="${cost > g.money ? 'bad' : ''}">${t('tool.cost', { cost: money(g.world, cost), days })}</small></div>
+        ${hint}`;
       el.querySelectorAll<HTMLElement>('[data-bt]').forEach((b) => (b.onclick = () => this.cb.setBuildType(b.dataset.bt as BuildingTypeId)));
+      const gt = el.querySelector<HTMLInputElement>('#grid-toggle');
+      if (gt) gt.onchange = () => this.cb.setGrid(gt.checked);
     } else {
       el.innerHTML = `<div class="cards">${ROAD_TYPES.map((r) => `<button class="card ${this.roadType === r.id ? 'active' : ''}" data-rt="${r.id}">
           <b>${tk(`rt.${r.id}`)}</b><small>${t('rt.width', { w: r.width })}</small></button>`).join('')}</div>${hint}`;

@@ -44,6 +44,8 @@ export type DevEvent = 'roads' | 'buildings' | 'demolition' | 'progress';
 
 /** Gang/footpaths that may be removed once you own the land along them. */
 const REMOVABLE_ROADS = new Set<RoadKind>(['service', 'path', 'track', 'living_street', 'pedestrian']);
+/** Arterials and rail can never be demolished, however much land you own around them. */
+const PROTECTED_ROADS = new Set<RoadKind>(['motorway', 'trunk', 'primary', 'secondary', 'rail']);
 
 /**
  * Everything the player changes on the ground: demolitions, new roads, new buildings.
@@ -153,7 +155,9 @@ export class Development {
   /** An original gang/footpath can go once every cell beside it is yours. */
   canRemoveOriginalRoad(id: string): boolean {
     const r = this.origRoads.get(id);
-    if (!r || !REMOVABLE_ROADS.has(r.kind) || this.removedRoads.has(id)) return false;
+    if (!r || this.removedRoads.has(id) || PROTECTED_ROADS.has(r.kind)) return false;
+    // Every cell beside the road must be road or land you own: either a small alley,
+    // or a bigger road now landlocked by your property.
     let ok = true;
     let inside = 0;
     this.grid.forLine(r.line, r.width / 2 + 2.5, (i) => {
@@ -161,7 +165,15 @@ export class Development {
       const f = this.grid.flags[i];
       if (!(f & ROAD) && !(f & OWNED)) ok = false;
     });
-    return ok && inside > 0;
+    if (!ok || inside === 0) return false;
+    // Small lanes can always go; larger roads only once fully enclosed by your land.
+    if (REMOVABLE_ROADS.has(r.kind)) return true;
+    let enclosed = true;
+    this.grid.forLine(r.line, r.width / 2 + 3.5, (i) => {
+      const f = this.grid.flags[i];
+      if (!(f & ROAD) && !(f & OWNED)) enclosed = false;
+    });
+    return enclosed;
   }
 
   originalRoad(id: string) { return this.origRoads.get(id); }
