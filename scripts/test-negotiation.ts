@@ -176,3 +176,22 @@ const houses = (g: Game) => g.world.plots.filter((p) => p.category === 'house' &
   console.log(`offers at market value accepted: ${acc}/${n} (${((acc / n) * 100).toFixed(0)}%)`);
 }
 console.log('✔ negotiation test passed');
+
+// Milestone 15: clearing an owner's debts is a legal inducement that softens their price, once.
+{
+  const g = fresh();
+  g.money *= 10;
+  const { canClearDebt, clearDebt, minimumPrice, startVisit } = await import('../src/game/negotiation.ts');
+  const o = g.world.owners.find((x) => x.kind === 'person' && !x.holdout && x.finances === 'needs_money' && x.plotIds.length === 1)!;
+  assert.ok(canClearDebt(g, o));
+  const p = g.world.plot(o.plotIds[0])!;
+  const before = minimumPrice(g, o, p.value);
+  const s = startVisit(g, p);
+  const m0 = g.money, mood0 = o.mood;
+  assert.ok(clearDebt(g, s));
+  assert.ok(g.money < m0, 'paid');
+  assert.ok(o.mood > mood0, 'goodwill up');
+  assert.ok(minimumPrice(g, o, p.value) < before, 'asks less');
+  assert.ok(!canClearDebt(g, o), 'only once');
+  console.log('debt relief ok');
+}

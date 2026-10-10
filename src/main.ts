@@ -22,7 +22,7 @@ import { COLORS } from './render/styles';
 import { World } from './game/World';
 import type { Plot } from './game/types';
 import { Game } from './game/Game';
-import { acceptCounter, askHelp, giveGift, leave, listen, makeOffer, pressure, startVisit } from './game/negotiation';
+import { acceptCounter, askHelp, clearDebt, giveGift, leave, listen, makeOffer, pressure, startVisit } from './game/negotiation';
 import { acceptAsks, communityFund, leaveMeeting, listenAll, offerAll, presentPlan, signAll, startMeeting } from './game/meeting';
 import { resetMeetingDraft } from './ui/chatPanel';
 import { checkPapers, greetOfficial, officialOwnerId, requestService, startRoute } from './game/papers';
@@ -138,6 +138,7 @@ async function boot() {
       await new Promise((r) => setTimeout(r, 30)); // let the loading message paint before heavy work
       const g = save ? restore(save, m) : new Game(new World(m), difficulty);
       if (!save) { g.scenario = newScenarioState(g, scenarioId); if (inheritance && scenarioId !== 'tutorial') grantInheritance(g); }
+      const inheritedId = (!save && g.scenario.inheritedPlot) ? g.scenario.inheritedPlot : null;
       const w = g.world;
       currentKey = key;
       currentLoader = () => Promise.resolve(m);
@@ -205,6 +206,14 @@ async function boot() {
       hud.showLoading(null);
       if (save) hud.showToast({ kind: 'good', key: 'game.loaded' });
       startTutorialIfNeeded(g, !!save);
+      if (inheritedId) {
+        const ip = w.plot(inheritedId);
+        if (ip) {
+          plotLayer.setLens('mine'); hud.setLens('mine');
+          camera.centerOn(ip.cx, ip.cy, 2.2);
+          g.toast({ kind: 'good', key: 'toast.inherited' });
+        }
+      }
       document.getElementById('endscreen')!.hidden = true;
       renderGoals(document.getElementById('goals')!, g);
       if (g.scenario.outcome !== 'playing' && !g.scenario.continued) onScenario(g);
@@ -583,6 +592,7 @@ async function boot() {
         pressure: () => talk((g, s) => pressure(g, s)),
         leave: () => talk((g, s) => leave(g, s)),
         askHelp: (kind) => talk((g, s) => askHelp(g, s, kind)),
+        clearDebt: () => talk((g, s) => clearDebt(g, s)),
         visitOwner: (ownerId) => {
           const o = world?.owner(ownerId);
           const pid = o?.plotIds.find((id) => !game?.ownsPlot(id));

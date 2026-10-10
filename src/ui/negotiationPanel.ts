@@ -1,7 +1,7 @@
 import { t, tk } from '../i18n';
 import type { Game } from '../game/Game';
 import {
-  DEAL_OPTIONS, IMMEDIATE_OPTIONS, giftCost, helpCost, immediateCost, neighborHelper, optionCost, rtHeadFor, rtOnSide,
+  DEAL_OPTIONS, IMMEDIATE_OPTIONS, canClearDebt, debtCost, giftCost, helpCost, immediateCost, neighborHelper, optionCost, rtHeadFor, rtOnSide,
   type DealOption, type LogEntry, type Session,
 } from '../game/negotiation';
 import type { Owner } from '../game/types';
@@ -16,6 +16,7 @@ export interface NegotiationActions {
   gift(): void;
   pressure(): void;
   askHelp(kind: 'neighbor' | 'rt'): void;
+  clearDebt(): void;
   leave(): void;
   back(): void;
   /** Room view (no conversation running): start a visit, show the owner's land, or go to the chat list. */
@@ -165,6 +166,7 @@ export function renderNegotiation(el: HTMLElement, game: Game, ownerId: string, 
               ${neighbor ? portrait(neighbor, 'happy', 22) : '🤝'} ${neighbor ? t('help.neighbor', { name: esc(ownerName(neighbor)), cost: money(w, helpCost(game, live, 'neighbor')) }) : t('help.noNeighbor')}</button>
             <button id="neg-help-rt" ${!rt || helped(rt.id) ? 'disabled' : ''} title="${rt ? t(rtOnSide(game, rt) ? 'help.rtHint' : 'help.rtCold') : t('help.noRt')}">
               ${rt ? portrait(rt, rtOnSide(game, rt) ? 'happy' : 'worried', 22) : '🏠'} ${rt ? t('help.rt', { name: esc(ownerName(rt)), cost: money(w, helpCost(game, live, 'rt')) }) : t('help.noRt')}</button>
+            ${canClearDebt(game, o) ? `<button id="neg-debt" title="${t('help.debtHint')}">💸 ${t('help.debt', { cost: money(w, debtCost(game, live)) })}</button>` : ''}
           </div>`}
         </div>`}
     </div>`;
@@ -199,6 +201,7 @@ export function renderNegotiation(el: HTMLElement, game: Game, ownerId: string, 
   q('#neg-leave')!.onclick = a.leave;
   q('#neg-help-neighbor')?.addEventListener('click', () => a.askHelp('neighbor'));
   q('#neg-help-rt')?.addEventListener('click', () => a.askHelp('rt'));
+  q('#neg-debt')?.addEventListener('click', a.clearDebt);
 }
 
 function wire(el: HTMLElement, a: NegotiationActions) {

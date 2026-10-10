@@ -40,6 +40,8 @@ export interface OwnerRecord {
   lastAsk?: number;
   /** Price softened by neighbours or the RT head talking to them (Milestone 9). */
   persuadeDiscount?: number;
+  /** You settled this owner's debts as part of a deal (once). */
+  debtCleared?: boolean;
   /** How many log entries the player has seen (for unread badges). */
   read?: number;
 }

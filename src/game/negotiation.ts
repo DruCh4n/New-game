@@ -499,6 +499,41 @@ export function askHelp(game: Game, s: Session, kind: 'neighbor' | 'rt'): 'helpe
   return 'helped';
 }
 
+// ------------------------------------------------------------------ debt relief (a legal inducement)
+
+/** Owners in financial trouble you can help out of debt as part of a deal. */
+export function canClearDebt(game: Game, o: Owner): boolean {
+  if (o.kind !== 'person') return false;
+  const rec = game.records.get(o.id);
+  if (rec?.debtCleared) return false;
+  return o.finances === 'needs_money' || has(o, 'medicalDebt') || has(o, 'businessDebt') || has(o, 'schoolFees');
+}
+
+export function debtCost(game: Game, s: Session): number {
+  const step = game.world.region.priceStep / 5;
+  return Math.max(step, Math.round((s.value * 0.08) / step) * step);
+}
+
+/** Pay off an owner's debts. Legal and generous: big goodwill, and they ask noticeably less. Once per owner. */
+export function clearDebt(game: Game, s: Session): boolean {
+  if (s.ended) return false;
+  const o = game.world.owner(s.ownerId)!;
+  if (!canClearDebt(game, o)) return false;
+  const cost = debtCost(game, s);
+  if (game.money < cost) return false;
+  const rec = game.record(o.id);
+  rec.debtCleared = true;
+  game.addMoney(-cost);
+  act(game, o, 'player.clearDebt', { cost });
+  game.changeMood(o, 16);
+  rec.persuadeDiscount = Math.min(0.3, (rec.persuadeDiscount ?? 0) + 0.12);
+  s.ask = null;
+  s.patience += 1;
+  game.addReputation(1);
+  say(game, o, 'debt.thanks', undefined, s.round);
+  return true;
+}
+
 export function listen(game: Game, s: Session): void {
   if (s.ended) return;
   const o = game.world.owner(s.ownerId)!;

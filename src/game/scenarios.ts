@@ -162,12 +162,21 @@ export function grantInheritance(game: Game): string | null {
   if (!candidates.length) return null;
   candidates.sort((a, b) => Math.hypot(a.cx - cx, a.cy - cy) - Math.hypot(b.cx - cx, b.cy - cy));
   const plot = candidates[Math.min(3, candidates.length - 1)];
-  const owner = w.ownerOf(plot);
-  game.setStatus([plot.id], 'sold');
-  game.soldOwners.add(owner.id);
-  game.papers.checked.add(plot.id);
+  // A family compound: the house plus a few adjacent house plots, so you start with a visible piece of land.
+  const inherited = [plot];
+  for (const nid of plot.neighbors) {
+    if (inherited.length >= 4) break;
+    const np = w.plot(nid);
+    if (np && np.category === 'house' && !game.ownsPlot(np.id) && w.ownerOf(np).kind === 'person' && w.ownerOf(np).plotIds.length === 1) inherited.push(np);
+  }
+  for (const pl of inherited) {
+    const owner = w.ownerOf(pl);
+    game.setStatus([pl.id], 'sold');
+    game.soldOwners.add(owner.id);
+    game.papers.checked.add(pl.id);
+    game.record(owner.id).log.push({ day: 0, who: 'system', key: 'system.inherited' });
+  }
   game.scenario.inheritedPlot = plot.id;
-  game.record(owner.id).log.push({ day: 0, who: 'system', key: 'system.inherited' });
   return plot.id;
 }
 

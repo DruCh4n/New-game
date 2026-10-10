@@ -149,8 +149,8 @@ cash squeeze in year one (Hard drops to ~20% of its starting net worth before th
   dropdown or the start screen. It is heavier to load and best with hardware graphics; the sample
   kampung stays the quick default. Generate it (or a custom size) with `npm run city-map [halfMetres]`.
 - **Inherited land.** On the start screen, "Start with inherited family land" (on by default) gives you
-  a family house to begin from, mortgage-free, instead of only cash — so you start as a small
-  landowner. It doesn't apply to the tutorial.
+  a small family compound (a few adjacent plots) to begin from, mortgage-free. The game opens zoomed
+  in on it, highlighted in green. It doesn't apply to the tutorial.
 
 ### Building sizes, grid and sales
 
@@ -191,8 +191,9 @@ cash squeeze in year one (Hard drops to ~20% of its starting net worth before th
   meeting. People also **message you between visits**: someone short of money reconsiders, the last
   family on a street asks to talk, a neighbour of your land offers to sell, a former owner asks
   about a promised flat. A red badge shows unread rooms.
-- **Get help** in a conversation: ask a neighbour who already sold to you to put in a good word, or
-  ask the RT head (Ketua RT) to speak for you. Both soften the owner's price; the RT head refuses
+- **Get help** in a conversation: ask a neighbour who already sold to you to put in a good word,
+  ask the RT head (Ketua RT) to speak for you, or — for a family in financial trouble — offer to
+  **clear their debts** as part of the deal (a legal, generous inducement that softens them a lot). Both soften the owner's price; the RT head refuses
   if they don't like you.
 - **Group meetings (musyawarah).** Shift+click houses to select several, or press **Select with
   neighbours** in a plot's panel, then **Hold a meeting**. Present the plan, listen to everyone,
