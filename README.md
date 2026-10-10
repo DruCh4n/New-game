@@ -144,7 +144,7 @@ cash squeeze in year one (Hard drops to ~20% of its starting net worth before th
 
 ### A bigger map and inheritance
 
-- **Kota Besar** is a much larger synthetic town (2 km × 2 km, ~4 km², over 16,000 buildings) with a
+- **Kota Besar** is a much larger synthetic town (2.8 km × 2.8 km, ~8 km², over 32,000 buildings) with a
   tiled street grid, arterials, a river and scattered parks and paddy fields. Pick it from the map
   dropdown or the start screen. It is heavier to load and best with hardware graphics; the sample
   kampung stays the quick default. Generate it (or a custom size) with `npm run city-map [halfMetres]`.
@@ -391,7 +391,7 @@ land area × country price × location factor (main road ×1.7, street ×1.0, al
 11. ✅ Builder and sales: size variants (house S–XL, shophouses, apartments, kost), a snap-to-grid
     toggle, demolishing roads enclosed by your land, and a sales office with per-building price
     levels, marketing campaigns and walk-in buyers you haggle with
-12. ✅ Bigger world and an inheritance start: a 4 km² tiled town (16k+ buildings), and the option to
+12. ✅ Bigger world and an inheritance start: a ~8 km² tiled town (32k+ buildings), and the option to
     start a game already owning a plot of inherited family land
 13. ✅ Living city: property booms and slumps, floods, elections and festivals, protests that freeze
     permits, a rival developer who competes for land, and a City news panel
