@@ -23,6 +23,10 @@ export function attachCameraControls(el: HTMLElement, cam: Camera, opts: Control
   let vx = 0, vy = 0;
   let intercepted = false;
   const keys = new Set<string>();
+  /** Active touch/mouse pointers for multi-touch pinch. */
+  const pointers = new Map<number, { x: number; y: number }>();
+  let pinchDist = 0; // last two-finger distance
+  let pinched = false;
 
   const local = (e: { clientX: number; clientY: number }) => {
     const r = el.getBoundingClientRect();
@@ -31,10 +35,14 @@ export function attachCameraControls(el: HTMLElement, cam: Camera, opts: Control
 
   el.addEventListener('pointerdown', (e) => {
     if (e.button !== 0 && e.button !== 1 && e.button !== 2) return;
-    el.setPointerCapture(e.pointerId);
+    try { el.setPointerCapture(e.pointerId); } catch { /* synthetic or already-released pointer */ }
+    const [px, py] = local(e);
+    pointers.set(e.pointerId, { x: px, y: py });
+    if (pointers.size === 2) { pinchDist = twoFingerDist(); pinched = true; return; }
+    if (pointers.size > 2) return;
     dragging = true;
     moved = 0;
-    [lastX, lastY] = local(e);
+    [lastX, lastY] = [px, py];
     lastT = performance.now();
     vx = vy = 0;
     cam.stopInertia();
@@ -46,6 +54,16 @@ export function attachCameraControls(el: HTMLElement, cam: Camera, opts: Control
 
   el.addEventListener('pointermove', (e) => {
     const [x, y] = local(e);
+    if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x, y });
+    // two fingers: pinch to zoom around their midpoint
+    if (pointers.size === 2) {
+      const [mx, my] = twoFingerMid();
+      const d = twoFingerDist();
+      if (pinchDist > 0 && d > 0) cam.zoomAt(mx, my, d / pinchDist);
+      pinchDist = d;
+      dragging = false;
+      return;
+    }
     opts.onPointerMove?.(x, y);
     if (!dragging) return;
     const dx = x - lastX, dy = y - lastY;
@@ -62,15 +80,25 @@ export function attachCameraControls(el: HTMLElement, cam: Camera, opts: Control
   });
 
   const end = (e: PointerEvent) => {
-    if (!dragging) return;
+    pointers.delete(e.pointerId);
+    if (pointers.size < 2) pinchDist = 0;
+    if (pointers.size === 1) {
+      // lifted one finger of a pinch: re-anchor the remaining one so the view doesn't jump
+      const [only] = [...pointers.values()];
+      lastX = only.x; lastY = only.y; lastT = performance.now();
+      dragging = true; moved = 999; // don't treat as a tap
+      return;
+    }
+    if (!dragging) { if (pinched && pointers.size === 0) pinched = false; return; }
     dragging = false;
     el.classList.remove('dragging');
-    if (moved < 5) {
+    if (moved < 5 && !pinched) {
       const [x, y] = local(e);
       opts.onClick?.(x, y, e);
     } else if (!intercepted && performance.now() - lastT < 80) {
       cam.setInertia(vx, vy);
     }
+    if (pointers.size === 0) pinched = false;
   };
   el.addEventListener('pointerup', end);
   el.addEventListener('pointercancel', end);
@@ -96,6 +124,15 @@ export function attachCameraControls(el: HTMLElement, cam: Camera, opts: Control
   });
   window.addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()));
   window.addEventListener('blur', () => keys.clear());
+
+  function twoFingerDist(): number {
+    const [a, b] = [...pointers.values()];
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+  function twoFingerMid(): [number, number] {
+    const [a, b] = [...pointers.values()];
+    return [(a.x + b.x) / 2, (a.y + b.y) / 2];
+  }
 
   /** Call every frame for continuous keyboard panning. */
   return function updateKeys(dt: number) {

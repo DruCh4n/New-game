@@ -838,4 +838,24 @@ async function boot() {
   onLangChange(() => { if (!document.getElementById('welcome')!.hidden) showWelcome(); });
 }
 
+
+// Progressive web app: register the service worker for offline use when served over http(s).
+// Skipped inside the single-file artifact (served from a blob/srcdoc, no SW scope).
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost') && !window.frameElement) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(() => { /* offline-only, ignore */ }); });
+}
+
+// "Install app" button appears when the browser offers installation.
+let installPrompt: (Event & { prompt(): void }) | null = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  installPrompt = e as Event & { prompt(): void };
+  const btn = document.getElementById('install-btn');
+  if (btn) {
+    btn.removeAttribute('hidden');
+    btn.onclick = () => { installPrompt?.prompt(); installPrompt = null; btn.setAttribute('hidden', ''); };
+  }
+});
+window.addEventListener('appinstalled', () => { installPrompt = null; document.getElementById('install-btn')?.setAttribute('hidden', ''); });
+
 void boot();

@@ -118,6 +118,16 @@ build a tower with a loan, sell units, repeat) and prints cash, debt and net wor
 results on the sample map: Easy ≈ Rp 63 B → 235 B, Normal ≈ 42 B → 128 B, Hard ≈ 35 B → 101 B, with a
 cash squeeze in year one (Hard drops to ~20% of its starting net worth before the first tower sells).
 
+### Phone and touch
+
+- **Touch controls.** Drag one finger to pan, tap to select, and **pinch with two fingers to zoom**.
+- **Phone layout.** On small screens the panels become a bottom sheet with a drag handle, the top and
+  bottom bars stay compact and scroll, and tap targets are enlarged.
+- **Install as an app.** Served over the web it is a PWA: an **Install app** button appears when your
+  browser offers it, it runs **offline** once loaded, and it installs with its own icon. The
+  single-file build (`npm run build:single`) is already a self-contained offline file you can save and
+  open anywhere.
+
 ### The living city
 
 - **📰 City** (top bar): the property market (a boom raises prices and income, a slump lowers them),
@@ -384,4 +394,5 @@ land area × country price × location factor (main road ×1.7, street ×1.0, al
     start a game already owning a plot of inherited family land
 13. ✅ Living city: property booms and slumps, floods, elections and festivals, protests that freeze
     permits, a rival developer who competes for land, and a City news panel
-14. Phone and touch: touch controls, phone layout, installable offline app
+14. ✅ Phone and touch: pinch-to-zoom and touch controls, a phone layout, and installable as an
+    offline app (PWA)
